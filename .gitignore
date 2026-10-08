@@ -1,0 +1,105 @@
+# =========================================================
+# NOVACART ROOT GITIGNORE
+# =========================================================
+
+# Environment files
+.env
+.env.*
+!.env.example
+
+client/.env
+client/.env.*
+!client/.env.example
+
+server/.env
+server/.env.*
+!server/.env.example
+
+# Node dependencies
+node_modules/
+client/node_modules/
+server/node_modules/
+
+# Build output
+dist/
+client/dist/
+server/dist/
+build/
+client/build/
+server/build/
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Runtime files
+*.pid
+*.pid.lock
+*.seed
+
+# Coverage
+coverage/
+.nyc_output/
+
+# Cache
+.cache/
+.vite/
+client/.vite/
+server/.vite/
+.eslintcache
+
+# IDE / Editor
+.vscode/
+.idea/
+*.iml
+
+# OS files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Temporary files
+*.tmp
+*.temp
+*.bak
+*.swp
+*.swo
+*~
+
+# Archive files
+*.zip
+*.rar
+*.7z
+*.tar
+*.gz
+
+# Local database / data files
+*.sqlite
+*.sqlite3
+*.db
+
+# Upload folders if added locally later
+uploads/
+client/uploads/
+server/uploads/
+
+# Vercel local files
+.vercel/
+client/.vercel/
+
+# Render / deployment temporary files
+.render/
+
+# Local certificates / keys
+*.pem
+*.key
+*.crt
+*.p12
+*.pfx
+
+# Misc generated files
+*.tsbuildinfo
