@@ -199,38 +199,6 @@ const Hero = () => {
               </Link>
             </div>
           </div>
-
-          <div className="hero-floating-card hero-floating-card-shipping">
-            <div className="hero-floating-icon">
-              <FaShippingFast />
-            </div>
-
-            <div>
-              <strong>
-                Free Shipping
-              </strong>
-
-              <span>
-                On orders above ₹500
-              </span>
-            </div>
-          </div>
-
-          <div className="hero-floating-card hero-floating-card-security">
-            <div className="hero-floating-icon">
-              <FaShieldAlt />
-            </div>
-
-            <div>
-              <strong>
-                Secure Payments
-              </strong>
-
-              <span>
-                COD, UPI & Card
-              </span>
-            </div>
-          </div>
         </div>
       </div>
 
