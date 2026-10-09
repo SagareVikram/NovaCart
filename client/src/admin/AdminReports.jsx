@@ -1616,7 +1616,7 @@ const AdminReports = () => {
             onClick={
               downloadInventoryReport
             }
-            style={pdfSecondaryButtonStyle}
+            style={pdfButtonStyle}
           >
             <FaFilePdf />
             Low Stock Report
@@ -2406,13 +2406,6 @@ const pdfButtonStyle = {
     "0 8px 18px rgba(108, 60, 255, 0.18)",
 };
 
-
-const pdfSecondaryButtonStyle = {
-  ...pdfButtonStyle,
-
-  background:
-    "#111827",
-};
 
 
 export default AdminReports;
