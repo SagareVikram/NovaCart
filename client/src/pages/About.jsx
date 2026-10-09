@@ -109,22 +109,6 @@ const About = () => {
                   </div>
                 </div>
               </div>
-
-              <div className="about-floating-card about-floating-card-one">
-                <FaTruck />
-
-                <span>
-                  Fast Delivery
-                </span>
-              </div>
-
-              <div className="about-floating-card about-floating-card-two">
-                <FaShieldAlt />
-
-                <span>
-                  Secure Shopping
-                </span>
-              </div>
             </div>
           </div>
         </div>
