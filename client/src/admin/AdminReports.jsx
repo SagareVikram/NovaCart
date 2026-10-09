@@ -9,16 +9,25 @@ import {
   FaBoxOpen,
   FaChartBar,
   FaChartLine,
+  FaDownload,
+  FaFilePdf,
   FaMoneyBillWave,
   FaShoppingBag,
   FaUsers,
 } from "react-icons/fa";
+
+import {
+  jsPDF,
+} from "jspdf";
+
+import autoTable from "jspdf-autotable";
 
 import api, {
   getApiErrorMessage,
 } from "../api/api.js";
 
 import Loader from "../components/Loader.jsx";
+
 
 const AdminReports = () => {
   const [
@@ -46,12 +55,6 @@ const AdminReports = () => {
     setError,
   ] = useState("");
 
-  /**
-   * Load:
-   *
-   * GET /api/admin/reports/overview?days=30
-   * GET /api/admin/reports/customers
-   */
   const loadReports =
     useCallback(
       async () => {
@@ -159,6 +162,7 @@ const AdminReports = () => {
     loadReports();
   }, [loadReports]);
 
+
   const summary =
     overview?.summary || {
       totalRevenue: 0,
@@ -168,20 +172,17 @@ const AdminReports = () => {
 
   const totalRevenue =
     Number(
-      summary.totalRevenue ||
-        0
+      summary.totalRevenue || 0
     );
 
   const totalOrders =
     Number(
-      summary.totalOrders ||
-        0
+      summary.totalOrders || 0
     );
 
   const averageOrderValue =
     Number(
-      summary.averageOrderValue ||
-        0
+      summary.averageOrderValue || 0
     );
 
   const dailySales =
@@ -215,10 +216,6 @@ const AdminReports = () => {
   const totalCustomers =
     customers.length;
 
-  /**
-   * Customer report endpoint is all-time
-   * non-cancelled customer activity.
-   */
   const totalCustomerSpend =
     useMemo(
       () =>
@@ -229,8 +226,7 @@ const AdminReports = () => {
           ) =>
             total +
             Number(
-              customer.totalSpent ||
-                0
+              customer.totalSpent || 0
             ),
           0
         ),
@@ -243,22 +239,16 @@ const AdminReports = () => {
         customers.filter(
           (customer) =>
             Number(
-              customer.totalOrders ||
-                0
+              customer.totalOrders || 0
             ) > 1
         ).length,
       [customers]
     );
 
-  /**
-   * Calculate chart maximum once instead of
-   * recalculating it for every bar.
-   */
   const maximumDailyRevenue =
     useMemo(() => {
       if (
-        dailySales.length ===
-        0
+        dailySales.length === 0
       ) {
         return 1;
       }
@@ -267,13 +257,13 @@ const AdminReports = () => {
         ...dailySales.map(
           (entry) =>
             Number(
-              entry.revenue ||
-                0
+              entry.revenue || 0
             )
         ),
         1
       );
     }, [dailySales]);
+
 
   const formatPrice =
     (value) => {
@@ -282,14 +272,12 @@ const AdminReports = () => {
       ).toLocaleString(
         "en-IN",
         {
-          minimumFractionDigits:
-            0,
-
-          maximumFractionDigits:
-            2,
+          minimumFractionDigits: 0,
+          maximumFractionDigits: 2,
         }
       );
     };
+
 
   const formatDate =
     (value) => {
@@ -318,6 +306,7 @@ const AdminReports = () => {
       );
     };
 
+
   const formatStatus =
     (value) => {
       if (!value) {
@@ -335,6 +324,7 @@ const AdminReports = () => {
             character.toUpperCase()
         );
     };
+
 
   const getProductImage =
     (product) => {
@@ -357,6 +347,1117 @@ const AdminReports = () => {
       return "";
     };
 
+
+  const getPeriodLabel = () => {
+    if (days === "7") {
+      return "Last 7 Days";
+    }
+
+    if (days === "30") {
+      return "Last 30 Days";
+    }
+
+    if (days === "90") {
+      return "Last 90 Days";
+    }
+
+    if (days === "365") {
+      return "Last 1 Year";
+    }
+
+    return `Last ${days} Days`;
+  };
+
+
+  const getGeneratedDate = () => {
+    return new Date()
+      .toLocaleString(
+        "en-IN",
+        {
+          day: "2-digit",
+          month: "short",
+          year: "numeric",
+          hour: "2-digit",
+          minute: "2-digit",
+        }
+      );
+  };
+
+
+  const sanitizeFileName =
+    (value) => {
+      return String(value)
+        .replace(
+          /[^a-z0-9]+/gi,
+          "-"
+        )
+        .replace(
+          /^-|-$/g,
+          ""
+        )
+        .toLowerCase();
+    };
+
+
+  const addPdfHeader =
+    (
+      doc,
+      title,
+      subtitle = ""
+    ) => {
+      const pageWidth =
+        doc.internal.pageSize
+          .getWidth();
+
+      doc.setFillColor(
+        108,
+        60,
+        255
+      );
+
+      doc.rect(
+        0,
+        0,
+        pageWidth,
+        32,
+        "F"
+      );
+
+      doc.setTextColor(
+        255,
+        255,
+        255
+      );
+
+      doc.setFont(
+        "helvetica",
+        "bold"
+      );
+
+      doc.setFontSize(20);
+
+      doc.text(
+        "NovaCart",
+        14,
+        13
+      );
+
+      doc.setFontSize(13);
+
+      doc.text(
+        title,
+        14,
+        22
+      );
+
+      doc.setFont(
+        "helvetica",
+        "normal"
+      );
+
+      doc.setFontSize(8.5);
+
+      doc.text(
+        subtitle ||
+          `Generated: ${getGeneratedDate()}`,
+        14,
+        28
+      );
+
+      doc.setTextColor(
+        40,
+        40,
+        40
+      );
+    };
+
+
+  const addPdfFooter =
+    (doc) => {
+      const pageCount =
+        doc.internal
+          .getNumberOfPages();
+
+      for (
+        let page = 1;
+        page <= pageCount;
+        page += 1
+      ) {
+        doc.setPage(page);
+
+        const pageWidth =
+          doc.internal.pageSize
+            .getWidth();
+
+        const pageHeight =
+          doc.internal.pageSize
+            .getHeight();
+
+        doc.setDrawColor(
+          220,
+          220,
+          220
+        );
+
+        doc.line(
+          14,
+          pageHeight - 15,
+          pageWidth - 14,
+          pageHeight - 15
+        );
+
+        doc.setTextColor(
+          120,
+          120,
+          120
+        );
+
+        doc.setFontSize(8);
+
+        doc.text(
+          "NovaCart E-Commerce Management System",
+          14,
+          pageHeight - 9
+        );
+
+        doc.text(
+          `Page ${page} of ${pageCount}`,
+          pageWidth - 14,
+          pageHeight - 9,
+          {
+            align: "right",
+          }
+        );
+      }
+    };
+
+
+  const savePdf =
+    (
+      doc,
+      reportName
+    ) => {
+      addPdfFooter(doc);
+
+      const date =
+        new Date()
+          .toISOString()
+          .slice(
+            0,
+            10
+          );
+
+      doc.save(
+        `novacart-${sanitizeFileName(
+          reportName
+        )}-${date}.pdf`
+      );
+    };
+
+
+  const downloadSalesReport =
+    () => {
+      const doc =
+        new jsPDF({
+          orientation: "portrait",
+          unit: "mm",
+          format: "a4",
+        });
+
+      addPdfHeader(
+        doc,
+        "Sales Report",
+        `${getPeriodLabel()} | Generated: ${getGeneratedDate()}`
+      );
+
+      autoTable(
+        doc,
+        {
+          startY: 40,
+
+          head: [[
+            "Metric",
+            "Value",
+          ]],
+
+          body: [
+            [
+              "Report Period",
+              getPeriodLabel(),
+            ],
+            [
+              "Total Revenue",
+              `INR ${formatPrice(
+                totalRevenue
+              )}`,
+            ],
+            [
+              "Total Orders",
+              String(
+                totalOrders
+              ),
+            ],
+            [
+              "Average Order Value",
+              `INR ${formatPrice(
+                averageOrderValue
+              )}`,
+            ],
+          ],
+
+          theme: "grid",
+
+          headStyles: {
+            fillColor: [
+              108,
+              60,
+              255,
+            ],
+          },
+        }
+      );
+
+      let startY =
+        doc.lastAutoTable
+          .finalY + 10;
+
+      doc.setFont(
+        "helvetica",
+        "bold"
+      );
+
+      doc.setFontSize(13);
+
+      doc.text(
+        "Daily Sales",
+        14,
+        startY
+      );
+
+      autoTable(
+        doc,
+        {
+          startY:
+            startY + 4,
+
+          head: [[
+            "Date",
+            "Orders",
+            "Revenue",
+          ]],
+
+          body:
+            dailySales.length > 0
+              ? dailySales.map(
+                  (sale) => [
+                    formatDate(
+                      sale._id
+                    ),
+                    String(
+                      Number(
+                        sale.orders ||
+                          0
+                      )
+                    ),
+                    `INR ${formatPrice(
+                      sale.revenue
+                    )}`,
+                  ]
+                )
+              : [[
+                  "No sales data",
+                  "-",
+                  "-",
+                ]],
+
+          theme: "striped",
+
+          headStyles: {
+            fillColor: [
+              108,
+              60,
+              255,
+            ],
+          },
+        }
+      );
+
+      startY =
+        doc.lastAutoTable
+          .finalY + 10;
+
+      doc.setFont(
+        "helvetica",
+        "bold"
+      );
+
+      doc.setFontSize(13);
+
+      doc.text(
+        "Order Status Summary",
+        14,
+        startY
+      );
+
+      autoTable(
+        doc,
+        {
+          startY:
+            startY + 4,
+
+          head: [[
+            "Order Status",
+            "Orders",
+          ]],
+
+          body:
+            orderStatusCounts
+              .length > 0
+              ? orderStatusCounts.map(
+                  (item) => [
+                    formatStatus(
+                      item._id
+                    ),
+                    String(
+                      Number(
+                        item.count ||
+                          0
+                      )
+                    ),
+                  ]
+                )
+              : [[
+                  "No status data",
+                  "0",
+                ]],
+
+          theme: "grid",
+
+          headStyles: {
+            fillColor: [
+              108,
+              60,
+              255,
+            ],
+          },
+        }
+      );
+
+      savePdf(
+        doc,
+        "sales-report"
+      );
+    };
+
+
+  const downloadProductReport =
+    () => {
+      const doc =
+        new jsPDF({
+          orientation: "landscape",
+          unit: "mm",
+          format: "a4",
+        });
+
+      addPdfHeader(
+        doc,
+        "Product Performance Report",
+        `${getPeriodLabel()} | Generated: ${getGeneratedDate()}`
+      );
+
+      autoTable(
+        doc,
+        {
+          startY: 40,
+
+          head: [[
+            "#",
+            "Product",
+            "SKU",
+            "Category",
+            "Brand",
+            "Sold",
+            "Revenue",
+            "Avg. Price",
+            "Stock",
+          ]],
+
+          body:
+            topProducts.length > 0
+              ? topProducts.map(
+                  (
+                    product,
+                    index
+                  ) => [
+                    index + 1,
+                    product.name ||
+                      "Product",
+                    product.sku ||
+                      "-",
+                    product.category ||
+                      "-",
+                    product.brand ||
+                      "-",
+                    Number(
+                      product.soldCount ||
+                        0
+                    ),
+                    `INR ${formatPrice(
+                      product.revenue
+                    )}`,
+                    `INR ${formatPrice(
+                      product.averageUnitPrice
+                    )}`,
+                    product.stock ??
+                      "-",
+                  ]
+                )
+              : [[
+                  "-",
+                  "No product sales data",
+                  "-",
+                  "-",
+                  "-",
+                  "-",
+                  "-",
+                  "-",
+                  "-",
+                ]],
+
+          theme: "striped",
+
+          styles: {
+            fontSize: 8,
+            cellPadding: 2.5,
+          },
+
+          headStyles: {
+            fillColor: [
+              108,
+              60,
+              255,
+            ],
+          },
+        }
+      );
+
+      savePdf(
+        doc,
+        "product-performance-report"
+      );
+    };
+
+
+  const downloadCustomerReport =
+    () => {
+      const doc =
+        new jsPDF({
+          orientation: "landscape",
+          unit: "mm",
+          format: "a4",
+        });
+
+      addPdfHeader(
+        doc,
+        "Customer Report",
+        `All-Time Customer Activity | Generated: ${getGeneratedDate()}`
+      );
+
+      autoTable(
+        doc,
+        {
+          startY: 40,
+
+          head: [[
+            "Metric",
+            "Value",
+          ]],
+
+          body: [
+            [
+              "Report Customers",
+              String(
+                totalCustomers
+              ),
+            ],
+            [
+              "Total Customer Spend",
+              `INR ${formatPrice(
+                totalCustomerSpend
+              )}`,
+            ],
+            [
+              "Repeat Customers",
+              String(
+                repeatCustomers
+              ),
+            ],
+          ],
+
+          tableWidth: 120,
+
+          theme: "grid",
+
+          headStyles: {
+            fillColor: [
+              108,
+              60,
+              255,
+            ],
+          },
+        }
+      );
+
+      const startY =
+        doc.lastAutoTable
+          .finalY + 10;
+
+      doc.setFont(
+        "helvetica",
+        "bold"
+      );
+
+      doc.setFontSize(13);
+
+      doc.text(
+        "Customer Ranking",
+        14,
+        startY
+      );
+
+      autoTable(
+        doc,
+        {
+          startY:
+            startY + 4,
+
+          head: [[
+            "#",
+            "Customer",
+            "Email",
+            "Phone",
+            "Orders",
+            "Total Spent",
+            "Last Order",
+          ]],
+
+          body:
+            customers.length > 0
+              ? customers.map(
+                  (
+                    customer,
+                    index
+                  ) => [
+                    index + 1,
+                    customer.name ||
+                      "Customer",
+                    customer.email ||
+                      "-",
+                    customer.phone ||
+                      "-",
+                    Number(
+                      customer.totalOrders ||
+                        0
+                    ),
+                    `INR ${formatPrice(
+                      customer.totalSpent
+                    )}`,
+                    formatDate(
+                      customer.lastOrderAt
+                    ),
+                  ]
+                )
+              : [[
+                  "-",
+                  "No customer data",
+                  "-",
+                  "-",
+                  "-",
+                  "-",
+                  "-",
+                ]],
+
+          theme: "striped",
+
+          styles: {
+            fontSize: 8,
+            cellPadding: 2.5,
+          },
+
+          headStyles: {
+            fillColor: [
+              108,
+              60,
+              255,
+            ],
+          },
+        }
+      );
+
+      savePdf(
+        doc,
+        "customer-report"
+      );
+    };
+
+
+  const downloadInventoryReport =
+    () => {
+      const doc =
+        new jsPDF({
+          orientation: "landscape",
+          unit: "mm",
+          format: "a4",
+        });
+
+      addPdfHeader(
+        doc,
+        "Low Stock Inventory Report",
+        `Generated: ${getGeneratedDate()}`
+      );
+
+      autoTable(
+        doc,
+        {
+          startY: 40,
+
+          head: [[
+            "#",
+            "Product",
+            "SKU",
+            "Category",
+            "Brand",
+            "Current Stock",
+            "Alert Threshold",
+            "Status",
+          ]],
+
+          body:
+            lowStockProducts
+              .length > 0
+              ? lowStockProducts.map(
+                  (
+                    product,
+                    index
+                  ) => {
+                    const stock =
+                      Number(
+                        product.stock ||
+                          0
+                      );
+
+                    const threshold =
+                      Number(
+                        product.lowStockThreshold ||
+                          0
+                      );
+
+                    return [
+                      index + 1,
+                      product.name ||
+                        "Product",
+                      product.sku ||
+                        "-",
+                      product.category ||
+                        "-",
+                      product.brand ||
+                        "-",
+                      stock,
+                      threshold,
+                      stock <= 0
+                        ? "Out of Stock"
+                        : "Low Stock",
+                    ];
+                  }
+                )
+              : [[
+                  "-",
+                  "No low-stock products",
+                  "-",
+                  "-",
+                  "-",
+                  "-",
+                  "-",
+                  "Inventory Healthy",
+                ]],
+
+          theme: "grid",
+
+          styles: {
+            fontSize: 8,
+            cellPadding: 2.5,
+          },
+
+          headStyles: {
+            fillColor: [
+              108,
+              60,
+              255,
+            ],
+          },
+        }
+      );
+
+      savePdf(
+        doc,
+        "low-stock-inventory-report"
+      );
+    };
+
+
+  const downloadCompleteReport =
+    () => {
+      const doc =
+        new jsPDF({
+          orientation: "portrait",
+          unit: "mm",
+          format: "a4",
+        });
+
+      addPdfHeader(
+        doc,
+        "Complete Business Report",
+        `${getPeriodLabel()} | Generated: ${getGeneratedDate()}`
+      );
+
+      autoTable(
+        doc,
+        {
+          startY: 40,
+
+          head: [[
+            "Business Metric",
+            "Value",
+          ]],
+
+          body: [
+            [
+              "Selected Period",
+              getPeriodLabel(),
+            ],
+            [
+              "Revenue",
+              `INR ${formatPrice(
+                totalRevenue
+              )}`,
+            ],
+            [
+              "Orders",
+              String(
+                totalOrders
+              ),
+            ],
+            [
+              "Average Order Value",
+              `INR ${formatPrice(
+                averageOrderValue
+              )}`,
+            ],
+            [
+              "Customer Records",
+              String(
+                totalCustomers
+              ),
+            ],
+            [
+              "Customer Spend",
+              `INR ${formatPrice(
+                totalCustomerSpend
+              )}`,
+            ],
+            [
+              "Repeat Customers",
+              String(
+                repeatCustomers
+              ),
+            ],
+            [
+              "Low Stock Products",
+              String(
+                lowStockProducts.length
+              ),
+            ],
+          ],
+
+          theme: "grid",
+
+          headStyles: {
+            fillColor: [
+              108,
+              60,
+              255,
+            ],
+          },
+        }
+      );
+
+      let startY =
+        doc.lastAutoTable
+          .finalY + 10;
+
+      doc.setFont(
+        "helvetica",
+        "bold"
+      );
+
+      doc.setFontSize(13);
+
+      doc.text(
+        "Daily Sales",
+        14,
+        startY
+      );
+
+      autoTable(
+        doc,
+        {
+          startY:
+            startY + 4,
+
+          head: [[
+            "Date",
+            "Orders",
+            "Revenue",
+          ]],
+
+          body:
+            dailySales.length > 0
+              ? dailySales.map(
+                  (sale) => [
+                    formatDate(
+                      sale._id
+                    ),
+                    Number(
+                      sale.orders ||
+                        0
+                    ),
+                    `INR ${formatPrice(
+                      sale.revenue
+                    )}`,
+                  ]
+                )
+              : [[
+                  "No sales data",
+                  "-",
+                  "-",
+                ]],
+
+          theme: "striped",
+
+          headStyles: {
+            fillColor: [
+              108,
+              60,
+              255,
+            ],
+          },
+        }
+      );
+
+      startY =
+        doc.lastAutoTable
+          .finalY + 10;
+
+      doc.setFont(
+        "helvetica",
+        "bold"
+      );
+
+      doc.setFontSize(13);
+
+      doc.text(
+        "Top Products",
+        14,
+        startY
+      );
+
+      autoTable(
+        doc,
+        {
+          startY:
+            startY + 4,
+
+          head: [[
+            "Product",
+            "Sold",
+            "Revenue",
+            "Stock",
+          ]],
+
+          body:
+            topProducts.length > 0
+              ? topProducts.map(
+                  (product) => [
+                    product.name ||
+                      "Product",
+                    Number(
+                      product.soldCount ||
+                        0
+                    ),
+                    `INR ${formatPrice(
+                      product.revenue
+                    )}`,
+                    product.stock ??
+                      "-",
+                  ]
+                )
+              : [[
+                  "No product data",
+                  "-",
+                  "-",
+                  "-",
+                ]],
+
+          theme: "grid",
+
+          headStyles: {
+            fillColor: [
+              108,
+              60,
+              255,
+            ],
+          },
+        }
+      );
+
+      startY =
+        doc.lastAutoTable
+          .finalY + 10;
+
+      doc.setFont(
+        "helvetica",
+        "bold"
+      );
+
+      doc.setFontSize(13);
+
+      doc.text(
+        "Order Status",
+        14,
+        startY
+      );
+
+      autoTable(
+        doc,
+        {
+          startY:
+            startY + 4,
+
+          head: [[
+            "Status",
+            "Orders",
+          ]],
+
+          body:
+            orderStatusCounts
+              .length > 0
+              ? orderStatusCounts.map(
+                  (item) => [
+                    formatStatus(
+                      item._id
+                    ),
+                    Number(
+                      item.count ||
+                        0
+                    ),
+                  ]
+                )
+              : [[
+                  "No status data",
+                  "0",
+                ]],
+
+          theme: "striped",
+
+          headStyles: {
+            fillColor: [
+              108,
+              60,
+              255,
+            ],
+          },
+        }
+      );
+
+      startY =
+        doc.lastAutoTable
+          .finalY + 10;
+
+      doc.setFont(
+        "helvetica",
+        "bold"
+      );
+
+      doc.setFontSize(13);
+
+      doc.text(
+        "Top Customers",
+        14,
+        startY
+      );
+
+      autoTable(
+        doc,
+        {
+          startY:
+            startY + 4,
+
+          head: [[
+            "Customer",
+            "Orders",
+            "Total Spent",
+            "Last Order",
+          ]],
+
+          body:
+            customers.length > 0
+              ? customers
+                  .slice(
+                    0,
+                    10
+                  )
+                  .map(
+                    (customer) => [
+                      customer.name ||
+                        "Customer",
+                      Number(
+                        customer.totalOrders ||
+                          0
+                      ),
+                      `INR ${formatPrice(
+                        customer.totalSpent
+                      )}`,
+                      formatDate(
+                        customer.lastOrderAt
+                      ),
+                    ]
+                  )
+              : [[
+                  "No customer data",
+                  "-",
+                  "-",
+                  "-",
+                ]],
+
+          theme: "grid",
+
+          headStyles: {
+            fillColor: [
+              108,
+              60,
+              255,
+            ],
+          },
+        }
+      );
+
+      savePdf(
+        doc,
+        "complete-business-report"
+      );
+    };
+
+
   if (loading) {
     return (
       <main className="admin-page admin-reports-page">
@@ -368,11 +1469,9 @@ const AdminReports = () => {
     );
   }
 
+
   return (
     <main className="admin-page admin-reports-page">
-      {/* ==========================================
-          PAGE HEADER
-      =========================================== */}
 
       <div className="admin-page-header">
         <div>
@@ -400,9 +1499,7 @@ const AdminReports = () => {
           <select
             id="report-days"
             value={days}
-            onChange={(
-              event
-            ) =>
+            onChange={(event) =>
               setDays(
                 event.target.value
               )
@@ -427,16 +1524,112 @@ const AdminReports = () => {
         </div>
       </div>
 
-      {/* ==========================================
-          ERROR
-      =========================================== */}
+
+      {/* PDF DOWNLOADS */}
+
+      <section
+        className="admin-card"
+        style={{
+          marginBottom: "24px",
+        }}
+      >
+        <div className="admin-card-header">
+          <div>
+            <span className="admin-card-eyebrow">
+              Export Reports
+            </span>
+
+            <h2>
+              Download PDF Reports
+            </h2>
+          </div>
+
+          <FaFilePdf className="admin-card-header-icon" />
+        </div>
+
+        <p
+          style={{
+            margin:
+              "0 0 18px",
+            color:
+              "var(--text-muted, #6b7280)",
+          }}
+        >
+          Download professional NovaCart
+          reports using the currently
+          selected reporting period.
+        </p>
+
+        <div
+          style={{
+            display: "flex",
+            flexWrap: "wrap",
+            gap: "12px",
+          }}
+        >
+          <button
+            type="button"
+            onClick={
+              downloadCompleteReport
+            }
+            style={pdfButtonStyle}
+          >
+            <FaDownload />
+            Complete Report
+          </button>
+
+          <button
+            type="button"
+            onClick={
+              downloadSalesReport
+            }
+            style={pdfButtonStyle}
+          >
+            <FaFilePdf />
+            Sales Report
+          </button>
+
+          <button
+            type="button"
+            onClick={
+              downloadProductReport
+            }
+            style={pdfButtonStyle}
+          >
+            <FaFilePdf />
+            Product Report
+          </button>
+
+          <button
+            type="button"
+            onClick={
+              downloadCustomerReport
+            }
+            style={pdfButtonStyle}
+          >
+            <FaFilePdf />
+            Customer Report
+          </button>
+
+          <button
+            type="button"
+            onClick={
+              downloadInventoryReport
+            }
+            style={pdfSecondaryButtonStyle}
+          >
+            <FaFilePdf />
+            Low Stock Report
+          </button>
+        </div>
+      </section>
+
 
       {error && (
         <div className="admin-message error">
           <div>
             <strong>
-              Reports could not be
-              loaded.
+              Reports could not be loaded.
             </strong>
 
             <p>
@@ -446,20 +1639,16 @@ const AdminReports = () => {
 
           <button
             type="button"
-            onClick={
-              loadReports
-            }
+            onClick={loadReports}
           >
             Retry
           </button>
         </div>
       )}
 
-      {/* ==========================================
-          SUMMARY CARDS
-      =========================================== */}
 
       <section className="admin-report-summary-grid">
+
         <article className="admin-stat-card">
           <div className="admin-stat-icon">
             <FaMoneyBillWave />
@@ -484,6 +1673,7 @@ const AdminReports = () => {
           </div>
         </article>
 
+
         <article className="admin-stat-card">
           <div className="admin-stat-icon">
             <FaShoppingBag />
@@ -504,6 +1694,7 @@ const AdminReports = () => {
             </small>
           </div>
         </article>
+
 
         <article className="admin-stat-card">
           <div className="admin-stat-icon">
@@ -529,6 +1720,7 @@ const AdminReports = () => {
           </div>
         </article>
 
+
         <article className="admin-stat-card">
           <div className="admin-stat-icon">
             <FaUsers />
@@ -549,17 +1741,15 @@ const AdminReports = () => {
             </small>
           </div>
         </article>
+
       </section>
 
-      {/* ==========================================
-          MAIN REPORT LAYOUT
-      =========================================== */}
 
       <section className="admin-report-grid">
+
         <div className="admin-report-main-column">
-          {/* ========================================
-              DAILY SALES
-          ========================================= */}
+
+          {/* DAILY SALES */}
 
           <section className="admin-card">
             <div className="admin-card-header">
@@ -576,9 +1766,9 @@ const AdminReports = () => {
               <FaChartLine className="admin-card-header-icon" />
             </div>
 
-            {dailySales.length >
-            0 ? (
+            {dailySales.length > 0 ? (
               <div className="admin-sales-chart">
+
                 {dailySales.map(
                   (
                     sale,
@@ -618,11 +1808,14 @@ const AdminReports = () => {
                           <div
                             className="admin-sales-chart-bar"
                             style={{
-                              height: `${height}%`,
+                              height:
+                                `${height}%`,
                             }}
-                            title={`₹${formatPrice(
-                              revenue
-                            )}`}
+                            title={
+                              `₹${formatPrice(
+                                revenue
+                              )}`
+                            }
                           />
                         </div>
 
@@ -636,8 +1829,7 @@ const AdminReports = () => {
                         <span>
                           {orders}{" "}
                           order
-                          {orders ===
-                          1
+                          {orders === 1
                             ? ""
                             : "s"}
                         </span>
@@ -651,6 +1843,7 @@ const AdminReports = () => {
                     );
                   }
                 )}
+
               </div>
             ) : (
               <div className="admin-empty-state">
@@ -669,9 +1862,8 @@ const AdminReports = () => {
             )}
           </section>
 
-          {/* ========================================
-              TOP PRODUCTS
-          ========================================= */}
+
+          {/* TOP PRODUCTS */}
 
           <section className="admin-card">
             <div className="admin-card-header">
@@ -688,8 +1880,7 @@ const AdminReports = () => {
               <FaBoxOpen className="admin-card-header-icon" />
             </div>
 
-            {topProducts.length >
-            0 ? (
+            {topProducts.length > 0 ? (
               <div className="admin-table-wrap">
                 <table className="admin-table">
                   <thead>
@@ -717,6 +1908,7 @@ const AdminReports = () => {
                   </thead>
 
                   <tbody>
+
                     {topProducts.map(
                       (
                         product,
@@ -737,12 +1929,11 @@ const AdminReports = () => {
                           >
                             <td>
                               <div className="admin-product-cell">
+
                                 <div className="admin-product-thumb">
                                   {image ? (
                                     <img
-                                      src={
-                                        image
-                                      }
+                                      src={image}
                                       alt={
                                         product.name ||
                                         "Product"
@@ -782,6 +1973,7 @@ const AdminReports = () => {
                                     </small>
                                   )}
                                 </div>
+
                               </div>
                             </td>
 
@@ -816,6 +2008,7 @@ const AdminReports = () => {
                         );
                       }
                     )}
+
                   </tbody>
                 </table>
               </div>
@@ -831,9 +2024,8 @@ const AdminReports = () => {
             )}
           </section>
 
-          {/* ========================================
-              CUSTOMER REPORT
-          ========================================= */}
+
+          {/* CUSTOMER REPORT */}
 
           <section className="admin-card">
             <div className="admin-card-header">
@@ -851,6 +2043,7 @@ const AdminReports = () => {
             </div>
 
             <div className="admin-customer-report-summary">
+
               <div>
                 <span>
                   Report Customers
@@ -883,6 +2076,7 @@ const AdminReports = () => {
                   {repeatCustomers}
                 </strong>
               </div>
+
             </div>
 
             <p className="admin-report-note">
@@ -894,8 +2088,7 @@ const AdminReports = () => {
               overview above.
             </p>
 
-            {customers.length >
-            0 ? (
+            {customers.length > 0 ? (
               <div className="admin-table-wrap">
                 <table className="admin-table">
                   <thead>
@@ -919,6 +2112,7 @@ const AdminReports = () => {
                   </thead>
 
                   <tbody>
+
                     {customers.map(
                       (
                         customer,
@@ -932,6 +2126,7 @@ const AdminReports = () => {
                         >
                           <td>
                             <div className="admin-user-cell">
+
                               <div className="admin-user-avatar">
                                 {String(
                                   customer.name ||
@@ -956,12 +2151,11 @@ const AdminReports = () => {
 
                                 {customer.phone && (
                                   <small>
-                                    {
-                                      customer.phone
-                                    }
+                                    {customer.phone}
                                   </small>
                                 )}
                               </div>
+
                             </div>
                           </td>
 
@@ -987,6 +2181,7 @@ const AdminReports = () => {
                         </tr>
                       )
                     )}
+
                   </tbody>
                 </table>
               </div>
@@ -1000,17 +2195,15 @@ const AdminReports = () => {
                 </p>
               </div>
             )}
+
           </section>
+
         </div>
 
-        {/* ==========================================
-            SIDE COLUMN
-        =========================================== */}
 
         <aside className="admin-report-side-column">
-          {/* ========================================
-              ORDER STATUS
-          ========================================= */}
+
+          {/* ORDER STATUS */}
 
           <section className="admin-card">
             <div className="admin-card-header">
@@ -1030,6 +2223,7 @@ const AdminReports = () => {
             {orderStatusCounts.length >
             0 ? (
               <div className="admin-status-report-list">
+
                 {orderStatusCounts.map(
                   (
                     item,
@@ -1041,18 +2235,21 @@ const AdminReports = () => {
 
                     const count =
                       Number(
-                        item.count ||
-                          0
+                        item.count || 0
                       );
 
                     return (
                       <div
-                        key={`${status}-${index}`}
+                        key={
+                          `${status}-${index}`
+                        }
                         className="admin-status-report-item"
                       >
                         <div>
                           <span
-                            className={`admin-status admin-status-${status}`}
+                            className={
+                              `admin-status admin-status-${status}`
+                            }
                           >
                             {formatStatus(
                               status
@@ -1067,6 +2264,7 @@ const AdminReports = () => {
                     );
                   }
                 )}
+
               </div>
             ) : (
               <div className="admin-compact-empty">
@@ -1080,9 +2278,8 @@ const AdminReports = () => {
             )}
           </section>
 
-          {/* ========================================
-              LOW STOCK
-          ========================================= */}
+
+          {/* LOW STOCK */}
 
           <section className="admin-card">
             <div className="admin-card-header">
@@ -1102,6 +2299,7 @@ const AdminReports = () => {
             {lowStockProducts.length >
             0 ? (
               <div className="admin-low-stock-list">
+
                 {lowStockProducts.map(
                   (
                     product,
@@ -1123,9 +2321,7 @@ const AdminReports = () => {
                         <div className="admin-low-stock-image">
                           {image ? (
                             <img
-                              src={
-                                image
-                              }
+                              src={image}
                               alt={
                                 product.name ||
                                 "Product"
@@ -1170,6 +2366,7 @@ const AdminReports = () => {
                     );
                   }
                 )}
+
               </div>
             ) : (
               <div className="admin-compact-empty">
@@ -1182,10 +2379,40 @@ const AdminReports = () => {
               </div>
             )}
           </section>
+
         </aside>
+
       </section>
+
     </main>
   );
 };
+
+
+const pdfButtonStyle = {
+  display: "inline-flex",
+  alignItems: "center",
+  justifyContent: "center",
+  gap: "8px",
+  border: "none",
+  borderRadius: "10px",
+  padding: "11px 16px",
+  background: "#6c3cff",
+  color: "#ffffff",
+  fontWeight: "700",
+  fontSize: "14px",
+  cursor: "pointer",
+  boxShadow:
+    "0 8px 18px rgba(108, 60, 255, 0.18)",
+};
+
+
+const pdfSecondaryButtonStyle = {
+  ...pdfButtonStyle,
+
+  background:
+    "#111827",
+};
+
 
 export default AdminReports;
