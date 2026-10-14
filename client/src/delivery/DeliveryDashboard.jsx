@@ -34,7 +34,7 @@ import Loader from "../components/Loader.jsx";
 const DeliveryDashboard = () => {
   const {
     user,
-    updateCurrentUser,
+    refreshUser,
   } =
     useAuth();
 
@@ -468,97 +468,85 @@ const DeliveryDashboard = () => {
 
 
   const toggleAvailability =
-    async () => {
-      const nextValue =
-        !isAvailable;
+  async () => {
+    const nextValue =
+      !isAvailable;
 
+    try {
+      setAvailabilityUpdating(
+        true
+      );
 
-      try {
-        setAvailabilityUpdating(
-          true
+      setError("");
+      setMessage("");
+
+      await api.patch(
+        "/delivery/availability",
+        {
+          isAvailable:
+            nextValue,
+        }
+      );
+
+      /*
+       * Refresh the authenticated user from backend.
+       * This updates AuthContext and therefore also updates
+       * DeliveryLayout sidebar availability.
+       */
+      const refreshedUser =
+        await refreshUser();
+
+      if (
+        refreshedUser
+      ) {
+        setProfile(
+          refreshedUser
         );
-
-        setError("");
-        setMessage("");
-
-
-        const response =
-          await api.patch(
-            "/delivery/availability",
-            {
-              isAvailable:
-                nextValue,
-            }
+      } else {
+        /*
+         * Fallback only if refreshUser does not return
+         * the refreshed user object.
+         */
+        const profileResponse =
+          await api.get(
+            "/delivery/profile"
           );
 
-
-        const updatedUser =
-          response.data
+        const profileData =
+          profileResponse.data
             ?.user ||
-          response.data
+          profileResponse.data
             ?.profile ||
-          response.data ||
+          profileResponse.data ||
           null;
 
-
-        if (
-          updatedUser?._id
-        ) {
-          setProfile(
-            updatedUser
-          );
-
-
-          if (
-            typeof updateCurrentUser ===
-            "function"
-          ) {
-            updateCurrentUser(
-              updatedUser
-            );
-          }
-        } else {
-          setProfile(
-            (
-              current
-            ) => ({
-              ...current,
-
-              deliveryAgentProfile:
-                {
-                  ...current
-                    ?.deliveryAgentProfile,
-
-                  isAvailable:
-                    nextValue,
-                },
-            })
-          );
-        }
-
-
-        setMessage(
-          `You are now ${
-            nextValue
-              ? "available"
-              : "unavailable"
-          } for new delivery assignments.`
-        );
-      } catch (
-        error
-      ) {
-        setError(
-          getApiErrorMessage(
-            error,
-            "Unable to update availability."
-          )
-        );
-      } finally {
-        setAvailabilityUpdating(
-          false
+        setProfile(
+          profileData
         );
       }
-    };
+
+      setMessage(
+        `You are now ${
+          nextValue
+            ? "available"
+            : "unavailable"
+        } for new delivery assignments.`
+      );
+    } catch (
+      error
+    ) {
+      setError(
+        getApiErrorMessage(
+          error,
+          "Unable to update availability."
+        )
+      );
+    } finally {
+      setAvailabilityUpdating(
+        false
+      );
+    }
+  };
 
 
   /**

@@ -2423,3 +2423,713 @@
     overflow-x: auto;
   }
 }
+
+/* ============================================================
+   ADMIN MAIN LAYOUT
+   ============================================================ */
+
+.admin-shell {
+  min-height: 100vh;
+
+  display: flex;
+
+  background: #f6f7fb;
+}
+
+
+.admin-sidebar {
+  width: 240px;
+  min-height: 100vh;
+
+  flex: 0 0 240px;
+
+  background: #17151f;
+
+  padding: 28px 18px;
+
+  display: flex;
+  flex-direction: column;
+
+  position: sticky;
+  top: 0;
+
+  align-self: flex-start;
+}
+
+
+.admin-sidebar-brand {
+  padding: 0 10px 24px;
+
+  border-bottom:
+    1px solid rgba(
+      255,
+      255,
+      255,
+      0.08
+    );
+}
+
+
+.admin-brand-link {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+
+  color: #ffffff;
+
+  text-decoration: none;
+}
+
+
+.admin-brand-link strong {
+  font-size: 18px;
+  font-weight: 800;
+}
+
+
+.admin-brand-link span {
+  font-size: 12px;
+
+  color:
+    rgba(
+      255,
+      255,
+      255,
+      0.58
+    );
+}
+
+
+.admin-sidebar-nav {
+  display: flex;
+  flex-direction: column;
+
+  gap: 7px;
+
+  margin-top: 24px;
+}
+
+
+.admin-sidebar-link {
+  display: flex;
+  align-items: center;
+
+  min-height: 44px;
+
+  padding: 11px 12px;
+
+  border-radius: 10px;
+
+  color:
+    rgba(
+      255,
+      255,
+      255,
+      0.7
+    );
+
+  text-decoration: none;
+
+  font-size: 14px;
+  font-weight: 600;
+
+  transition:
+    background 0.2s ease,
+    color 0.2s ease;
+}
+
+
+.admin-sidebar-link:hover {
+  color: #ffffff;
+
+  background:
+    rgba(
+      255,
+      255,
+      255,
+      0.07
+    );
+}
+
+
+.admin-sidebar-link.active {
+  color: #ffffff;
+
+  background: #6c3cff;
+}
+
+
+.admin-content {
+  flex: 1;
+
+  min-width: 0;
+
+  padding: 26px;
+
+  background: #f6f7fb;
+}
+
+
+@media (
+  max-width: 800px
+) {
+  .admin-shell {
+    display: block;
+  }
+
+
+  .admin-sidebar {
+    width: 100%;
+
+    min-height: auto;
+
+    position: static;
+
+    padding: 16px;
+  }
+
+
+  .admin-sidebar-nav {
+    display: grid;
+
+    grid-template-columns:
+      repeat(
+        2,
+        minmax(
+          0,
+          1fr
+        )
+      );
+
+    margin-top: 16px;
+  }
+
+
+  .admin-content {
+    padding: 16px;
+  }
+}
+
+.admin-sidebar-bottom {
+  margin-top: auto;
+
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+
+  padding-top: 18px;
+}
+
+
+.admin-view-store,
+.admin-logout-button {
+  width: 100%;
+
+  min-height: 42px;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  border-radius: 10px;
+
+  font-size: 13px;
+  font-weight: 700;
+
+  text-decoration: none;
+
+  cursor: pointer;
+}
+
+
+.admin-view-store {
+  border:
+    1px solid rgba(
+      255,
+      255,
+      255,
+      0.12
+    );
+
+  background:
+    rgba(
+      255,
+      255,
+      255,
+      0.06
+    );
+
+  color: #ffffff;
+}
+
+
+.admin-view-store:hover {
+  background:
+    rgba(
+      255,
+      255,
+      255,
+      0.1
+    );
+}
+
+
+.admin-logout-button {
+  border:
+    1px solid rgba(
+      217,
+      69,
+      69,
+      0.2
+    );
+
+  background:
+    rgba(
+      217,
+      69,
+      69,
+      0.13
+    );
+
+  color: #ff9a9a;
+
+  font-family: inherit;
+}
+
+
+.admin-logout-button:hover {
+  background:
+    rgba(
+      217,
+      69,
+      69,
+      0.2
+    );
+}
+
+/* ============================================================
+   MODERN ADMIN SIDEBAR
+   SAME DESIGN STYLE AS DELIVERY AGENT
+   ============================================================ */
+
+.admin-app-shell {
+  min-height: 100vh;
+
+  display: flex;
+
+  background: #f6f7fb;
+}
+
+
+.admin-modern-sidebar {
+  width: 270px;
+
+  min-height: 100vh;
+
+  background: #171721;
+
+  color: #ffffff;
+
+  display: flex;
+  flex-direction: column;
+
+  position: fixed;
+
+  top: 0;
+  left: 0;
+  bottom: 0;
+
+  padding: 24px 18px;
+
+  z-index: 50;
+}
+
+
+/* BRAND */
+
+.admin-modern-brand {
+  display: flex;
+  align-items: center;
+
+  gap: 12px;
+
+  padding: 4px 8px 22px;
+
+  border-bottom:
+    1px solid rgba(
+      255,
+      255,
+      255,
+      0.08
+    );
+}
+
+
+.admin-modern-logo {
+  width: 44px;
+  height: 44px;
+
+  display: grid;
+  place-items: center;
+
+  border-radius: 14px;
+
+  background:
+    linear-gradient(
+      135deg,
+      #6c3cff,
+      #9d67ff
+    );
+
+  color: #ffffff;
+
+  font-size: 20px;
+  font-weight: 800;
+
+  box-shadow:
+    0 8px 20px rgba(
+      108,
+      60,
+      255,
+      0.35
+    );
+}
+
+
+.admin-modern-brand > div:last-child {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+
+.admin-modern-brand strong {
+  font-size: 18px;
+  font-weight: 800;
+}
+
+
+.admin-modern-brand span {
+  font-size: 12px;
+
+  color:
+    rgba(
+      255,
+      255,
+      255,
+      0.58
+    );
+}
+
+
+/* PROFILE */
+
+.admin-modern-profile {
+  display: flex;
+  align-items: center;
+
+  gap: 12px;
+
+  padding: 20px 8px 16px;
+}
+
+
+.admin-modern-avatar {
+  width: 42px;
+  height: 42px;
+
+  display: grid;
+  place-items: center;
+
+  border-radius: 50%;
+
+  background: #6c3cff;
+
+  color: #ffffff;
+
+  font-size: 15px;
+  font-weight: 800;
+}
+
+
+.admin-modern-profile > div:last-child {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+
+  min-width: 0;
+}
+
+
+.admin-modern-profile strong {
+  font-size: 14px;
+}
+
+
+.admin-modern-profile span {
+  font-size: 12px;
+
+  color:
+    rgba(
+      255,
+      255,
+      255,
+      0.55
+    );
+}
+
+
+/* NAVIGATION */
+
+.admin-modern-nav {
+  display: flex;
+  flex-direction: column;
+
+  gap: 6px;
+
+  margin-top: 2px;
+}
+
+
+.admin-modern-link {
+  display: flex;
+  align-items: center;
+
+  gap: 12px;
+
+  padding: 12px 14px;
+
+  border-radius: 12px;
+
+  color:
+    rgba(
+      255,
+      255,
+      255,
+      0.68
+    );
+
+  text-decoration: none;
+
+  font-size: 14px;
+  font-weight: 600;
+
+  transition:
+    background 0.2s ease,
+    color 0.2s ease,
+    transform 0.2s ease;
+}
+
+
+.admin-modern-link:hover {
+  color: #ffffff;
+
+  background:
+    rgba(
+      255,
+      255,
+      255,
+      0.07
+    );
+
+  transform:
+    translateX(2px);
+}
+
+
+.admin-modern-link.active {
+  color: #ffffff;
+
+  background:
+    linear-gradient(
+      135deg,
+      #6c3cff,
+      #7d4cf5
+    );
+
+  box-shadow:
+    0 8px 20px rgba(
+      108,
+      60,
+      255,
+      0.25
+    );
+}
+
+
+.admin-modern-icon {
+  width: 18px;
+  min-width: 18px;
+
+  font-size: 16px;
+
+  color: rgba(255, 255, 255, 0.72);
+
+  transition:
+    color 0.2s ease;
+}
+
+
+.admin-modern-link:hover .admin-modern-icon,
+.admin-modern-link.active .admin-modern-icon {
+  color: #ffffff;
+}
+
+
+/* FOOTER */
+
+.admin-modern-footer {
+  margin-top: auto;
+
+  display: flex;
+  flex-direction: column;
+
+  gap: 10px;
+
+  padding-top: 18px;
+}
+
+
+.admin-modern-store,
+.admin-modern-logout {
+  width: 100%;
+
+  min-height: 46px;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  border-radius: 12px;
+
+  font-size: 13px;
+  font-weight: 700;
+
+  text-decoration: none;
+
+  cursor: pointer;
+}
+
+
+.admin-modern-store {
+  border:
+    1px solid rgba(
+      255,
+      255,
+      255,
+      0.12
+    );
+
+  background:
+    rgba(
+      255,
+      255,
+      255,
+      0.06
+    );
+
+  color: #ffffff;
+}
+
+
+.admin-modern-store:hover {
+  background:
+    rgba(
+      255,
+      255,
+      255,
+      0.1
+    );
+}
+
+
+.admin-modern-logout {
+  border:
+    1px solid rgba(
+      217,
+      69,
+      69,
+      0.22
+    );
+
+  background:
+    rgba(
+      217,
+      69,
+      69,
+      0.13
+    );
+
+  color: #ff9b9b;
+
+  font-family: inherit;
+}
+
+
+.admin-modern-logout:hover {
+  background:
+    rgba(
+      217,
+      69,
+      69,
+      0.2
+    );
+}
+
+
+/* CONTENT */
+
+.admin-modern-content {
+  flex: 1;
+
+  min-width: 0;
+
+  margin-left: 270px;
+
+  padding: 26px;
+
+  background: #f6f7fb;
+}
+
+
+/* RESPONSIVE */
+
+@media (
+  max-width: 800px
+) {
+
+  .admin-app-shell {
+    display: block;
+  }
+
+
+  .admin-modern-sidebar {
+    position: static;
+
+    width: 100%;
+
+    min-height: auto;
+  }
+
+
+  .admin-modern-nav {
+    display: grid;
+
+    grid-template-columns:
+      repeat(
+        2,
+        minmax(
+          0,
+          1fr
+        )
+      );
+  }
+
+
+  .admin-modern-content {
+    margin-left: 0;
+
+    padding: 16px;
+  }
+
+}

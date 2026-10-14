@@ -1,8 +1,11 @@
 import {
+  Link,
   Navigate,
   Outlet,
   Route,
   Routes,
+  useLocation,
+  useNavigate,
 } from "react-router-dom";
 
 import {
@@ -69,6 +72,16 @@ import DeliveryHistory from "./delivery/DeliveryHistory.jsx";
 import DeliveryPerformance from "./delivery/DeliveryPerformance.jsx";
 import DeliveryProfile from "./delivery/DeliveryProfile.jsx";
 
+
+
+import {
+  FaBoxOpen,
+  FaChartBar,
+  FaHome,
+  FaShoppingCart,
+  FaTruck,
+  FaUsers,
+} from "react-icons/fa";
 
 /**
  * ============================================================
@@ -292,58 +305,210 @@ const AdminRoute = () => {
  */
 
 const AdminLayout = () => {
+  const location =
+    useLocation();
+
+  const {
+    logout,
+  } =
+    useAuth();
+
+  const navigate =
+    useNavigate();
+
+
+  const adminLinks = [
+  {
+    label: "Dashboard",
+    path: "/admin",
+    icon: FaHome,
+  },
+  {
+    label: "Products",
+    path: "/admin/products",
+    icon: FaBoxOpen,
+  },
+  {
+    label: "Orders",
+    path: "/admin/orders",
+    icon: FaShoppingCart,
+  },
+  {
+    label: "Customers",
+    path: "/admin/users",
+    icon: FaUsers,
+  },
+  {
+    label: "Delivery Agents",
+    path: "/admin/delivery-agents",
+    icon: FaTruck,
+  },
+  {
+    label: "Reports",
+    path: "/admin/reports",
+    icon: FaChartBar,
+  },
+];
+
+
+  const isActive =
+    (path) => {
+      if (
+        path ===
+        "/admin"
+      ) {
+        return (
+          location.pathname ===
+          "/admin"
+        );
+      }
+
+      return location.pathname.startsWith(
+        path
+      );
+    };
+
+
+  const handleLogout =
+    async () => {
+      try {
+        await logout();
+      } finally {
+        navigate(
+          "/login",
+          {
+            replace:
+              true,
+          }
+        );
+      }
+    };
+
+
   return (
-    <div className="admin-layout">
+    <div className="admin-app-shell">
 
-      <aside className="admin-sidebar">
+      <aside className="admin-modern-sidebar">
 
-        <div className="admin-sidebar-brand">
+        {/* BRAND */}
 
-          <strong>
-            NovaCart
-          </strong>
+        <div className="admin-modern-brand">
 
-          <span>
-            Admin
-          </span>
+          <div className="admin-modern-logo">
+            N
+          </div>
+
+
+          <div>
+
+            <strong>
+              NovaCart
+            </strong>
+
+            <span>
+              Admin
+            </span>
+
+          </div>
 
         </div>
 
 
-        <nav className="admin-sidebar-nav">
+        {/* PROFILE */}
 
-          <a href="/admin">
-            Dashboard
-          </a>
+        <div className="admin-modern-profile">
 
-          <a href="/admin/products">
-            Products
-          </a>
+          <div className="admin-modern-avatar">
+            A
+          </div>
 
-          <a href="/admin/orders">
-            Orders
-          </a>
 
-          <a href="/admin/users">
-            Customers
-          </a>
+          <div>
 
-          <a href="/admin/delivery-agents">
-            Delivery Agents
-          </a>
+            <strong>
+              Administrator
+            </strong>
 
-          <a href="/admin/reports">
-            Reports
-          </a>
+            <span>
+              Admin Panel
+            </span>
+
+          </div>
+
+        </div>
+
+
+        {/* NAVIGATION */}
+
+        <nav className="admin-modern-nav">
+
+          {adminLinks.map(
+            (
+              item
+            ) => (
+              <Link
+                key={
+                  item.path
+                }
+                to={
+                  item.path
+                }
+                className={`admin-modern-link ${
+                  isActive(
+                    item.path
+                  )
+                    ? "active"
+                    : ""
+                }`}
+              >
+
+                <item.icon className="admin-modern-icon" />
+
+                <span>
+                  {
+                    item.label
+                  }
+                </span>
+
+              </Link>
+            )
+          )}
 
         </nav>
+
+
+        {/* FOOTER */}
+
+        <div className="admin-modern-footer">
+
+          <Link
+            to="/"
+            className="admin-modern-store"
+          >
+            View Store
+          </Link>
+
+
+          <button
+            type="button"
+            className="admin-modern-logout"
+            onClick={
+              handleLogout
+            }
+          >
+            Logout
+          </button>
+
+        </div>
 
       </aside>
 
 
-      <div className="admin-main">
+      <main className="admin-modern-content">
+
         <Outlet />
-      </div>
+
+      </main>
 
     </div>
   );
