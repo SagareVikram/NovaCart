@@ -27,6 +27,18 @@ import {
 } from "../controllers/adminController.js";
 
 import {
+  getDeliveryAgents,
+  getAvailableDeliveryAgents,
+  createDeliveryAgent,
+  getDeliveryAgentDetails,
+  updateDeliveryAgent,
+  updateDeliveryAgentStatus,
+  updateDeliveryAgentAvailability,
+  assignOrderToDeliveryAgent,
+  removeOrderDeliveryAgent,
+} from "../controllers/deliveryAdminController.js";
+
+import {
   protect,
 } from "../middleware/authMiddleware.js";
 
@@ -38,38 +50,49 @@ import {
   upload,
 } from "../middleware/uploadMiddleware.js";
 
+
 const router = express.Router();
 
+
 /**
- * All admin routes require:
+ * ============================================================
+ * ALL ADMIN ROUTES REQUIRE:
+ * ============================================================
  *
  * 1. Logged-in user
  * 2. Admin role
  */
-router.use(protect);
-router.use(adminOnly);
+router.use(
+  protect
+);
+
+router.use(
+  adminOnly
+);
+
 
 /**
- * ==========================================
+ * ============================================================
  * ADMIN DASHBOARD
- * ==========================================
+ * ============================================================
  */
-
 router.get(
   "/dashboard",
   getDashboardStats
 );
 
+
 /**
- * ==========================================
+ * ============================================================
  * PRODUCT MANAGEMENT
- * ==========================================
+ * ============================================================
  */
 
 /**
- * Get all products for admin.
+ * Get all products.
  *
  * Supports:
+ *
  * ?page=1
  * ?limit=20
  * ?search=iphone
@@ -84,124 +107,116 @@ router.get(
   getAdminProducts
 );
 
+
 /**
  * Create product.
  *
  * multipart/form-data
  *
- * Product images field:
+ * Image field:
+ *
  * images
  *
  * Maximum:
+ *
  * 6 images
  */
 router.post(
   "/products",
+
   upload.array(
     "images",
     6
   ),
+
   createProduct
 );
 
+
 /**
  * Get one product.
- *
- * Keep this route after
- * the main /products routes.
  */
 router.get(
   "/products/:productId",
   getAdminProductById
 );
 
+
 /**
  * Update product.
  *
- * New images may optionally be uploaded.
- *
  * multipart/form-data
  *
- * Field:
+ * Optional new image field:
+ *
  * images
  *
- * Optional body:
+ * Optional:
+ *
  * replaceImages=true
  */
 router.put(
   "/products/:productId",
+
   upload.array(
     "images",
     6
   ),
+
   updateProduct
 );
 
+
 /**
- * Activate or deactivate product.
- *
- * Body:
- * {
- *   "isActive": true
- * }
+ * Activate / deactivate product.
  */
 router.patch(
   "/products/:productId/status",
   updateProductStatus
 );
 
+
 /**
- * Update product stock.
- *
- * Body:
- * {
- *   "stock": 25,
- *   "lowStockThreshold": 5
- * }
+ * Update product inventory.
  */
 router.patch(
   "/products/:productId/stock",
   updateProductStock
 );
 
+
 /**
- * Delete one Cloudinary product image.
- *
- * publicId must be URL encoded.
- *
- * Example:
- *
- * /api/admin/products/123/images/novacart%2Fproducts%2Fabc
+ * Delete one product image.
  */
 router.delete(
   "/products/:productId/images/:publicId",
   deleteProductImage
 );
 
+
 /**
  * Permanently delete product.
- *
- * Existing orders remain unchanged
- * because order items contain product snapshots.
  */
 router.delete(
   "/products/:productId",
   deleteProduct
 );
 
+
 /**
- * ==========================================
- * USER MANAGEMENT
- * ==========================================
+ * ============================================================
+ * CUSTOMER MANAGEMENT
+ * ============================================================
  */
 
 /**
- * Get all customer accounts.
+ * Get customers.
  *
  * Supports:
+ *
  * ?page=1
  * ?limit=20
- * ?search=pratham
+ * ?search=tejas
  * ?status=active
  */
 router.get(
@@ -209,32 +224,140 @@ router.get(
   getAdminUsers
 );
 
+
 /**
- * Get one customer's details,
- * recent orders and spending summary.
+ * Get customer details.
  */
 router.get(
   "/users/:userId",
   getAdminUserDetails
 );
 
+
 /**
- * Activate or disable customer.
- *
- * Body:
- * {
- *   "isActive": false
- * }
+ * Activate / deactivate customer.
  */
 router.patch(
   "/users/:userId/status",
   updateUserStatus
 );
 
+
 /**
- * ==========================================
+ * ============================================================
+ * DELIVERY AGENT MANAGEMENT
+ * ============================================================
+ */
+
+/**
+ * Get all delivery agents.
+ *
+ * GET /api/admin/delivery-agents
+ *
+ * Supports:
+ *
+ * ?page=1
+ * ?limit=20
+ * ?search=rahul
+ * ?status=active
+ * ?availability=available
+ */
+router.get(
+  "/delivery-agents",
+  getDeliveryAgents
+);
+
+
+/**
+ * Get only active and available
+ * delivery agents.
+ *
+ * Used by order assignment dropdown.
+ *
+ * IMPORTANT:
+ * Keep this before /:agentId.
+ */
+router.get(
+  "/delivery-agents/available",
+  getAvailableDeliveryAgents
+);
+
+
+/**
+ * Create delivery agent.
+ *
+ * POST /api/admin/delivery-agents
+ *
+ * Body:
+ *
+ * {
+ *   "name": "Rahul Patil",
+ *   "email": "rahul@novacart.com",
+ *   "password": "Rahul@123",
+ *   "phone": "9876543210",
+ *   "employeeId": "DA-001",
+ *   "vehicleNumber": "MH11AB1234",
+ *   "deliveryArea": "Karad"
+ * }
+ */
+router.post(
+  "/delivery-agents",
+  createDeliveryAgent
+);
+
+
+/**
+ * Get one delivery agent.
+ */
+router.get(
+  "/delivery-agents/:agentId",
+  getDeliveryAgentDetails
+);
+
+
+/**
+ * Update delivery agent.
+ */
+router.put(
+  "/delivery-agents/:agentId",
+  updateDeliveryAgent
+);
+
+
+/**
+ * Activate / deactivate delivery agent.
+ *
+ * Body:
+ *
+ * {
+ *   "isActive": true
+ * }
+ */
+router.patch(
+  "/delivery-agents/:agentId/status",
+  updateDeliveryAgentStatus
+);
+
+
+/**
+ * Admin can update availability.
+ *
+ * Body:
+ *
+ * {
+ *   "isAvailable": true
+ * }
+ */
+router.patch(
+  "/delivery-agents/:agentId/availability",
+  updateDeliveryAgentAvailability
+);
+
+
+/**
+ * ============================================================
  * ORDER MANAGEMENT
- * ==========================================
+ * ============================================================
  */
 
 /**
@@ -253,92 +376,122 @@ router.get(
   getAdminOrders
 );
 
+
 /**
- * Get complete order information.
+ * Get one complete order.
  */
 router.get(
   "/orders/:orderId",
   getAdminOrderDetails
 );
 
+
 /**
- * Update order status.
+ * Update normal admin order status.
  *
- * Body:
- * {
- *   "status": "shipped",
- *   "message": "Order shipped successfully."
- * }
+ * Example:
  *
- * Cancellation is intentionally NOT handled here.
- * The dedicated cancellation route safely restores stock.
+ * placed
+ *   ↓
+ * confirmed
+ *   ↓
+ * processing
+ *
+ * Once a delivery agent is assigned,
+ * the delivery-agent module can handle:
+ *
+ * shipped
+ * out_for_delivery
+ * delivered
  */
 router.patch(
   "/orders/:orderId/status",
   updateOrderStatus
 );
 
+
 /**
  * Update payment status.
- *
- * Body:
- * {
- *   "status": "paid",
- *   "transactionId": "TXN123"
- * }
  */
 router.patch(
   "/orders/:orderId/payment",
   updatePaymentStatus
 );
 
+
 /**
- * Cancel order as admin.
+ * Admin cancellation.
  *
- * Restores inventory automatically.
- *
- * Body:
- * {
- *   "reason": "Product unavailable"
- * }
+ * Inventory restoration remains handled
+ * by your existing controller.
  */
 router.post(
   "/orders/:orderId/cancel",
   adminCancelOrder
 );
 
+
 /**
- * ==========================================
+ * ============================================================
+ * ORDER DELIVERY AGENT ASSIGNMENT
+ * ============================================================
+ */
+
+/**
+ * Assign or reassign delivery agent.
+ *
+ * PATCH
+ * /api/admin/orders/:orderId/delivery-agent
+ *
+ * Body:
+ *
+ * {
+ *   "agentId": "..."
+ * }
+ */
+router.patch(
+  "/orders/:orderId/delivery-agent",
+  assignOrderToDeliveryAgent
+);
+
+
+/**
+ * Remove delivery agent assignment.
+ *
+ * DELETE
+ * /api/admin/orders/:orderId/delivery-agent
+ */
+router.delete(
+  "/orders/:orderId/delivery-agent",
+  removeOrderDeliveryAgent
+);
+
+
+/**
+ * ============================================================
  * REPORTS / ANALYTICS
- * ==========================================
+ * ============================================================
  */
 
 /**
  * Sales overview.
  *
- * Supports:
- * ?days=30
- *
- * Returns:
- * - revenue
- * - order count
- * - average order value
- * - daily sales
- * - order status counts
- * - top products
- * - low stock products
+ * GET
+ * /api/admin/reports/overview?days=30
  */
 router.get(
   "/reports/overview",
   getSalesOverview
 );
 
+
 /**
- * Top customer report.
+ * Customer report.
  */
 router.get(
   "/reports/customers",
   getCustomerReport
 );
+
 
 export default router;

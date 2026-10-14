@@ -14,8 +14,10 @@ import api, {
   saveAuthSession,
 } from "../api/api.js";
 
+
 const AuthContext =
   createContext(null);
+
 
 const AuthProvider = ({
   children,
@@ -37,13 +39,11 @@ const AuthProvider = ({
     setAuthError,
   ] = useState("");
 
+
   /**
-   * Store user locally without emitting
-   * another auth-change event.
-   *
-   * saveAuthSession() is reserved for
-   * login/register because it also stores
-   * the JWT token and broadcasts a change.
+   * ============================================================
+   * STORE USER LOCALLY
+   * ============================================================
    */
   const storeUser =
     useCallback(
@@ -66,15 +66,13 @@ const AuthProvider = ({
       []
     );
 
+
   /**
-   * Verify the current authenticated user.
+   * ============================================================
+   * REFRESH CURRENT USER
+   * ============================================================
    *
-   * IMPORTANT:
-   * This callback deliberately does NOT
-   * depend on "user".
-   *
-   * That prevents repeated /auth/me requests
-   * whenever the user object is refreshed.
+   * GET /api/auth/me
    */
   const refreshUser =
     useCallback(
@@ -112,27 +110,13 @@ const AuthProvider = ({
               ?.status;
 
           /**
-           * 401:
-           * token/cookie is invalid or
-           * expired.
-           *
-           * 403:
-           * account may have been disabled.
+           * Invalid/expired login
+           * or inactive account.
            */
           if (
             status === 401 ||
             status === 403
           ) {
-            /**
-             * Clear directly here rather
-             * than calling clearAuthSession()
-             * first.
-             *
-             * clearAuthSession() emits the
-             * custom auth event. Direct
-             * clearing avoids creating a
-             * refresh-event-refresh loop.
-             */
             localStorage.removeItem(
               "novacart_token"
             );
@@ -153,19 +137,13 @@ const AuthProvider = ({
                 )
               );
 
-              /**
-               * Logout route is public and
-               * safely clears the HTTP-only
-               * authentication cookie.
-               */
               try {
                 await api.post(
                   "/auth/logout"
                 );
               } catch {
-                // Local session is already
-                // cleared, so nothing else
-                // is required here.
+                // Local authentication state
+                // is already cleared.
               }
             } else {
               setAuthError("");
@@ -177,9 +155,14 @@ const AuthProvider = ({
             };
           }
 
+
           /**
-           * Keep the locally cached user on
-           * temporary network/server errors.
+           * Temporary network/server
+           * error.
+           *
+           * Keep cached user information
+           * so the interface does not log
+           * the user out unnecessarily.
            */
           console.error(
             "Unable to refresh user:",
@@ -188,8 +171,10 @@ const AuthProvider = ({
 
           return {
             success: false,
+
             user:
               getStoredUser(),
+
             message:
               getApiErrorMessage(
                 error,
@@ -205,10 +190,19 @@ const AuthProvider = ({
       [storeUser]
     );
 
+
   /**
-   * Register customer.
+   * ============================================================
+   * CUSTOMER REGISTRATION
+   * ============================================================
    *
    * POST /api/auth/register
+   *
+   * Public registration always creates
+   * normal customer accounts.
+   *
+   * Delivery agents are created only
+   * by the administrator.
    */
   const register =
     useCallback(
@@ -288,10 +282,19 @@ const AuthProvider = ({
       []
     );
 
+
   /**
-   * Login customer/admin.
+   * ============================================================
+   * LOGIN
+   * ============================================================
    *
    * POST /api/auth/login
+   *
+   * Supported roles:
+   *
+   * user
+   * admin
+   * delivery_agent
    */
   const login =
     useCallback(
@@ -341,6 +344,9 @@ const AuthProvider = ({
             user:
               loggedInUser,
 
+            role:
+              loggedInUser.role,
+
             message:
               response.data
                 ?.message ||
@@ -367,8 +373,11 @@ const AuthProvider = ({
       []
     );
 
+
   /**
-   * Logout.
+   * ============================================================
+   * LOGOUT
+   * ============================================================
    *
    * POST /api/auth/logout
    */
@@ -389,18 +398,15 @@ const AuthProvider = ({
               ?.message ||
             message;
         } catch (error) {
-          /**
-           * The browser session still needs
-           * to be cleared even when the
-           * backend cannot be reached.
-           */
           console.error(
             "Backend logout error:",
             error
           );
         } finally {
           clearAuthSession();
+
           setUser(null);
+
           setAuthError("");
         }
 
@@ -412,11 +418,18 @@ const AuthProvider = ({
       []
     );
 
+
   /**
-   * Merge updated profile data into the
-   * authenticated user.
+   * ============================================================
+   * UPDATE CURRENT USER
+   * ============================================================
    *
-   * Used after profile/address changes.
+   * Used after:
+   *
+   * - customer profile changes
+   * - saved address changes
+   * - delivery agent availability changes
+   * - future profile changes
    */
   const updateCurrentUser =
     useCallback(
@@ -430,8 +443,12 @@ const AuthProvider = ({
         }
 
         setUser(
-          (currentUser) => {
-            if (!currentUser) {
+          (
+            currentUser
+          ) => {
+            if (
+              !currentUser
+            ) {
               const nextUser = {
                 ...updatedUser,
               };
@@ -465,29 +482,35 @@ const AuthProvider = ({
       []
     );
 
-  /**
-   * Clear auth message manually.
-   */
-  const clearAuthError =
-    useCallback(() => {
-      setAuthError("");
-    }, []);
 
   /**
-   * Verify session once when the application
-   * first starts.
+   * ============================================================
+   * CLEAR AUTH ERROR
+   * ============================================================
+   */
+  const clearAuthError =
+    useCallback(
+      () => {
+        setAuthError("");
+      },
+      []
+    );
+
+
+  /**
+   * ============================================================
+   * VERIFY LOGIN ON APP START
+   * ============================================================
    */
   useEffect(() => {
     refreshUser();
   }, [refreshUser]);
 
+
   /**
-   * Synchronize authentication state when
-   * another browser tab changes localStorage.
-   *
-   * Browser "storage" events fire only in
-   * other tabs/windows, not the tab that made
-   * the change.
+   * ============================================================
+   * MULTI-TAB AUTH SYNCHRONIZATION
+   * ============================================================
    */
   useEffect(() => {
     const handleStorage =
@@ -508,10 +531,12 @@ const AuthProvider = ({
         );
       };
 
+
     window.addEventListener(
       "storage",
       handleStorage
     );
+
 
     return () => {
       window.removeEventListener(
@@ -521,13 +546,17 @@ const AuthProvider = ({
     };
   }, []);
 
+
   /**
-   * api.js broadcasts this event after
-   * login/logout/session invalidation.
+   * ============================================================
+   * CUSTOM NOVACART AUTH EVENT
+   * ============================================================
    *
-   * We only synchronize local state here.
-   * We do NOT call /auth/me here, preventing
-   * event -> request -> event loops.
+   * api.js dispatches this event after
+   * authentication state changes.
+   *
+   * Do not call /auth/me here because
+   * it can cause request/event loops.
    */
   useEffect(() => {
     const handleAuthChange =
@@ -537,10 +566,12 @@ const AuthProvider = ({
         );
       };
 
+
     window.addEventListener(
       "novacart-auth-changed",
       handleAuthChange
     );
+
 
     return () => {
       window.removeEventListener(
@@ -550,9 +581,19 @@ const AuthProvider = ({
     };
   }, []);
 
+
+  /**
+   * ============================================================
+   * AUTHENTICATION FLAGS
+   * ============================================================
+   */
   const isAuthenticated =
     Boolean(user);
 
+
+  /**
+   * Administrator account.
+   */
   const isAdmin =
     Boolean(
       user &&
@@ -560,6 +601,10 @@ const AuthProvider = ({
           "admin"
     );
 
+
+  /**
+   * Normal NovaCart customer.
+   */
   const isCustomer =
     Boolean(
       user &&
@@ -567,42 +612,142 @@ const AuthProvider = ({
           "user"
     );
 
+
+  /**
+   * Delivery Agent.
+   *
+   * NEW ROLE.
+   */
+  const isDeliveryAgent =
+    Boolean(
+      user &&
+        user.role ===
+          "delivery_agent"
+    );
+
+
+  /**
+   * ============================================================
+   * ROLE HELPERS
+   * ============================================================
+   */
+
+  const hasRole =
+    useCallback(
+      (role) => {
+        return Boolean(
+          user &&
+            user.role ===
+              role
+        );
+      },
+      [user]
+    );
+
+
+  const hasAnyRole =
+    useCallback(
+      (
+        allowedRoles = []
+      ) => {
+        if (
+          !user ||
+          !Array.isArray(
+            allowedRoles
+          )
+        ) {
+          return false;
+        }
+
+        return allowedRoles.includes(
+          user.role
+        );
+      },
+      [user]
+    );
+
+
+  /**
+   * ============================================================
+   * CONTEXT VALUE
+   * ============================================================
+   */
   const value =
     useMemo(
       () => ({
+        /**
+         * Current authenticated user.
+         */
         user,
 
         loading,
 
         authError,
 
+
+        /**
+         * Authentication state.
+         */
         isAuthenticated,
+
+
+        /**
+         * Role flags.
+         */
         isAdmin,
+
         isCustomer,
 
+        isDeliveryAgent,
+
+
+        /**
+         * Generic role helpers.
+         */
+        hasRole,
+
+        hasAnyRole,
+
+
+        /**
+         * Authentication actions.
+         */
         register,
+
         login,
+
         logout,
 
         refreshUser,
+
         updateCurrentUser,
+
         clearAuthError,
       }),
       [
         user,
         loading,
         authError,
+
         isAuthenticated,
+
         isAdmin,
         isCustomer,
+        isDeliveryAgent,
+
+        hasRole,
+        hasAnyRole,
+
         register,
         login,
         logout,
+
         refreshUser,
         updateCurrentUser,
         clearAuthError,
       ]
     );
+
 
   return (
     <AuthContext.Provider
@@ -612,6 +757,7 @@ const AuthProvider = ({
     </AuthContext.Provider>
   );
 };
+
 
 const useAuth = () => {
   const context =
@@ -627,6 +773,7 @@ const useAuth = () => {
 
   return context;
 };
+
 
 export {
   AuthContext,

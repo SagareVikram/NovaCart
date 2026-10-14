@@ -2020,6 +2020,12 @@ const getAdminOrders = async (
       "card",
     ];
 
+
+    /**
+     * ========================================================
+     * ORDER STATUS FILTER
+     * ========================================================
+     */
     if (req.query.status) {
       const status =
         String(
@@ -2036,6 +2042,12 @@ const getAdminOrders = async (
       }
     }
 
+
+    /**
+     * ========================================================
+     * PAYMENT STATUS FILTER
+     * ========================================================
+     */
     if (
       req.query.paymentStatus
     ) {
@@ -2056,6 +2068,12 @@ const getAdminOrders = async (
       }
     }
 
+
+    /**
+     * ========================================================
+     * PAYMENT METHOD FILTER
+     * ========================================================
+     */
     if (
       req.query.paymentMethod
     ) {
@@ -2076,6 +2094,12 @@ const getAdminOrders = async (
       }
     }
 
+
+    /**
+     * ========================================================
+     * SEARCH
+     * ========================================================
+     */
     if (req.query.search) {
       const search =
         escapeRegExp(
@@ -2116,6 +2140,58 @@ const getAdminOrders = async (
             ],
           }).select("_id");
 
+
+        const matchingAgents =
+          await User.find({
+            role:
+              "delivery_agent",
+
+            $or: [
+              {
+                name: {
+                  $regex:
+                    search,
+                  $options: "i",
+                },
+              },
+
+              {
+                email: {
+                  $regex:
+                    search,
+                  $options: "i",
+                },
+              },
+
+              {
+                phone: {
+                  $regex:
+                    search,
+                  $options: "i",
+                },
+              },
+
+              {
+                "deliveryAgentProfile.employeeId":
+                  {
+                    $regex:
+                      search,
+                    $options: "i",
+                  },
+              },
+
+              {
+                "deliveryAgentProfile.vehicleNumber":
+                  {
+                    $regex:
+                      search,
+                    $options: "i",
+                  },
+              },
+            ],
+          }).select("_id");
+
+
         filter.$or = [
           {
             orderNumber: {
@@ -2126,26 +2202,31 @@ const getAdminOrders = async (
           },
 
           {
-            "shippingAddress.fullName": {
-              $regex:
-                search,
-              $options: "i",
-            },
+            "shippingAddress.fullName":
+              {
+                $regex:
+                  search,
+                $options:
+                  "i",
+              },
           },
 
           {
-            "shippingAddress.phone": {
-              $regex:
-                search,
-              $options: "i",
-            },
+            "shippingAddress.phone":
+              {
+                $regex:
+                  search,
+                $options:
+                  "i",
+              },
           },
 
           {
             "items.name": {
               $regex:
                 search,
-              $options: "i",
+              $options:
+                "i",
             },
           },
 
@@ -2153,7 +2234,8 @@ const getAdminOrders = async (
             "items.sku": {
               $regex:
                 search,
-              $options: "i",
+              $options:
+                "i",
             },
           },
 
@@ -2166,10 +2248,26 @@ const getAdminOrders = async (
                 ),
             },
           },
+
+          {
+            "delivery.agent": {
+              $in:
+                matchingAgents.map(
+                  (agent) =>
+                    agent._id
+                ),
+            },
+          },
         ];
       }
     }
 
+
+    /**
+     * ========================================================
+     * SORTING
+     * ========================================================
+     */
     const sortOptions = {
       newest: {
         createdAt: -1,
@@ -2190,6 +2288,7 @@ const getAdminOrders = async (
       },
     };
 
+
     const sort =
       sortOptions[
         String(
@@ -2199,27 +2298,47 @@ const getAdminOrders = async (
       ] ||
       sortOptions.newest;
 
+
     const skip =
       (page - 1) *
       limit;
 
+
+    /**
+     * ========================================================
+     * LOAD ORDERS
+     * ========================================================
+     *
+     * NEW:
+     *
+     * delivery.agent is populated.
+     */
     const [
       orders,
       totalOrders,
-    ] = await Promise.all([
-      Order.find(filter)
-        .populate(
-          "user",
-          "name email phone"
-        )
-        .sort(sort)
-        .skip(skip)
-        .limit(limit),
+    ] =
+      await Promise.all([
+        Order.find(filter)
+          .populate(
+            "user",
+            "name email phone"
+          )
+          .populate({
+            path:
+              "delivery.agent",
 
-      Order.countDocuments(
-        filter
-      ),
-    ]);
+            select:
+              "name email phone role isActive deliveryAgentProfile",
+          })
+          .sort(sort)
+          .skip(skip)
+          .limit(limit),
+
+        Order.countDocuments(
+          filter
+        ),
+      ]);
+
 
     const totalPages =
       Math.max(
@@ -2230,36 +2349,42 @@ const getAdminOrders = async (
         1
       );
 
-    return res.status(200).json({
-      success: true,
 
-      orders,
+    return res
+      .status(200)
+      .json({
+        success: true,
 
-      pagination: {
-        page,
-        limit,
-        totalOrders,
-        totalPages,
+        orders,
 
-        hasNextPage:
-          page <
+        pagination: {
+          page,
+          limit,
+          totalOrders,
           totalPages,
 
-        hasPreviousPage:
-          page > 1,
-      },
-    });
+          hasNextPage:
+            page <
+            totalPages,
+
+          hasPreviousPage:
+            page > 1,
+        },
+      });
   } catch (error) {
     console.error(
       "Admin orders error:",
       error
     );
 
-    return res.status(500).json({
-      success: false,
-      message:
-        "Unable to load orders.",
-    });
+    return res
+      .status(500)
+      .json({
+        success: false,
+
+        message:
+          "Unable to load orders.",
+      });
   }
 };
 
@@ -2271,9 +2396,40 @@ const getAdminOrderDetails = async (
   res
 ) => {
   try {
+    const {
+      orderId,
+    } =
+      req.params;
+
+
+    /**
+     * ========================================================
+     * VALIDATE ORDER ID
+     * ========================================================
+     */
+    if (
+      !mongoose.Types.ObjectId.isValid(
+        orderId
+      )
+    ) {
+      return res
+        .status(400)
+        .json({
+          success: false,
+          message:
+            "Invalid order ID.",
+        });
+    }
+
+
+    /**
+     * ========================================================
+     * LOAD COMPLETE ORDER
+     * ========================================================
+     */
     const order =
       await Order.findById(
-        req.params.orderId
+        orderId
       )
         .populate(
           "user",
@@ -2285,31 +2441,55 @@ const getAdminOrderDetails = async (
 
           select:
             "name slug sku images category brand isActive",
+        })
+        .populate({
+          path:
+            "delivery.agent",
+
+          select:
+            "name email phone role isActive deliveryAgentProfile",
+        })
+        .populate({
+          path:
+            "statusHistory.changedBy",
+
+          select:
+            "name email role",
         });
 
+
     if (!order) {
-      return res.status(404).json({
-        success: false,
-        message:
-          "Order not found.",
-      });
+      return res
+        .status(404)
+        .json({
+          success: false,
+
+          message:
+            "Order not found.",
+        });
     }
 
-    return res.status(200).json({
-      success: true,
-      order,
-    });
+
+    return res
+      .status(200)
+      .json({
+        success: true,
+        order,
+      });
   } catch (error) {
     console.error(
       "Admin order details error:",
       error
     );
 
-    return res.status(500).json({
-      success: false,
-      message:
-        "Unable to load order details.",
-    });
+    return res
+      .status(500)
+      .json({
+        success: false,
+
+        message:
+          "Unable to load order details.",
+      });
   }
 };
 
@@ -2341,89 +2521,193 @@ const updateOrderStatus = async (
         status
       )
     ) {
-      return res.status(400).json({
-        success: false,
-        message:
-          "Invalid order status.",
-      });
+      return res
+        .status(400)
+        .json({
+          success: false,
+          message:
+            "Invalid order status.",
+        });
     }
+
 
     const order =
       await Order.findById(
         req.params.orderId
       );
 
+
     if (!order) {
-      return res.status(404).json({
-        success: false,
-        message:
-          "Order not found.",
-      });
+      return res
+        .status(404)
+        .json({
+          success: false,
+          message:
+            "Order not found.",
+        });
     }
 
+
+    /**
+     * Cancelled orders cannot
+     * be reopened.
+     */
     if (
       order.orderStatus ===
         "cancelled" &&
       status !==
         "cancelled"
     ) {
-      return res.status(400).json({
-        success: false,
-        message:
-          "Cancelled orders cannot be reopened.",
-      });
+      return res
+        .status(400)
+        .json({
+          success: false,
+          message:
+            "Cancelled orders cannot be reopened.",
+        });
     }
 
+
+    /**
+     * Delivered orders cannot
+     * move backwards.
+     */
     if (
       order.orderStatus ===
         "delivered" &&
       status !==
         "delivered"
     ) {
-      return res.status(400).json({
-        success: false,
-        message:
-          "Delivered orders cannot be moved to another status.",
-      });
+      return res
+        .status(400)
+        .json({
+          success: false,
+          message:
+            "Delivered orders cannot be moved to another status.",
+        });
     }
 
+
+    /**
+     * Cancellation must use
+     * dedicated endpoint so stock
+     * can be restored correctly.
+     */
     if (
       status ===
       "cancelled"
     ) {
-      return res.status(400).json({
-        success: false,
-        message:
-          "Use the dedicated admin cancellation endpoint for cancelling orders so stock can be restored safely.",
-      });
+      return res
+        .status(400)
+        .json({
+          success: false,
+          message:
+            "Use the dedicated admin cancellation endpoint for cancelling orders so stock can be restored safely.",
+        });
     }
 
+
+    /**
+     * No duplicate history entry
+     * when status is unchanged.
+     */
+    if (
+      order.orderStatus ===
+      status
+    ) {
+      return res
+        .status(200)
+        .json({
+          success: true,
+          message:
+            "Order is already in this status.",
+          order,
+        });
+    }
+
+
+    /**
+     * ========================================================
+     * ADD ADMIN STATUS HISTORY
+     * ========================================================
+     *
+     * NEW:
+     *
+     * changedBy     = logged-in admin
+     * changedByRole = admin
+     */
     order.addStatusHistory(
       status,
+
       String(
-        message || ""
-      ).trim()
+        message ||
+          `Order status changed to ${status.replace(
+            /_/g,
+            " "
+          )} by administrator.`
+      ).trim(),
+
+      req.user?._id ||
+        null,
+
+      "admin"
     );
+
 
     await order.save();
 
-    return res.status(200).json({
-      success: true,
-      message:
-        "Order status updated successfully.",
-      order,
-    });
+
+    await order.populate([
+      {
+        path:
+          "user",
+
+        select:
+          "name email phone",
+      },
+
+      {
+        path:
+          "delivery.agent",
+
+        select:
+          "name email phone role isActive deliveryAgentProfile",
+      },
+
+      {
+        path:
+          "statusHistory.changedBy",
+
+        select:
+          "name email role",
+      },
+    ]);
+
+
+    return res
+      .status(200)
+      .json({
+        success: true,
+
+        message:
+          "Order status updated successfully.",
+
+        order,
+      });
   } catch (error) {
     console.error(
       "Update order status error:",
       error
     );
 
-    return res.status(500).json({
-      success: false,
-      message:
-        "Unable to update order status.",
-    });
+    return res
+      .status(500)
+      .json({
+        success: false,
+
+        message:
+          "Unable to update order status.",
+      });
   }
 };
 
@@ -2554,18 +2838,23 @@ const adminCancelOrder = async (
     let cancelledOrderId =
       null;
 
+
     await session.withTransaction(
       async () => {
         const order =
           await Order.findById(
             req.params.orderId
-          ).session(session);
+          ).session(
+            session
+          );
+
 
         if (!order) {
           throw new Error(
             "ORDER_NOT_FOUND"
           );
         }
+
 
         if (
           order.orderStatus ===
@@ -2576,6 +2865,7 @@ const adminCancelOrder = async (
           );
         }
 
+
         if (
           order.orderStatus ===
           "delivered"
@@ -2585,6 +2875,12 @@ const adminCancelOrder = async (
           );
         }
 
+
+        /**
+         * ====================================================
+         * RESTORE INVENTORY
+         * ====================================================
+         */
         for (
           const item
           of order.items
@@ -2594,6 +2890,7 @@ const adminCancelOrder = async (
               _id:
                 item.product,
             },
+
             {
               $inc: {
                 stock:
@@ -2603,11 +2900,16 @@ const adminCancelOrder = async (
                   -item.quantity,
               },
             },
+
             {
               session,
             }
           );
 
+
+          /**
+           * Prevent negative soldCount.
+           */
           await Product.updateOne(
             {
               _id:
@@ -2617,33 +2919,66 @@ const adminCancelOrder = async (
                 $lt: 0,
               },
             },
+
             {
               $set: {
                 soldCount: 0,
               },
             },
+
             {
               session,
             }
           );
         }
 
+
+        /**
+         * ====================================================
+         * CANCELLATION DETAILS
+         * ====================================================
+         */
         order.cancellationReason =
           String(
             req.body.reason ||
               "Cancelled by administrator."
-          ).trim();
+          )
+            .trim()
+            .slice(
+              0,
+              500
+            );
+
 
         order.cancelledAt =
           new Date();
 
+
+        /**
+         * ====================================================
+         * ADMIN STATUS HISTORY
+         * ====================================================
+         */
         order.addStatusHistory(
           "cancelled",
-          "Order cancelled by administrator."
+
+          order.cancellationReason,
+
+          req.user?._id ||
+            null,
+
+          "admin"
         );
 
+
+        /**
+         * ====================================================
+         * PAYMENT REFUND
+         * ====================================================
+         */
         if (
-          order.payment.status ===
+          order.payment
+            .status ===
           "paid"
         ) {
           order.payment.status =
@@ -2653,73 +2988,114 @@ const adminCancelOrder = async (
             new Date();
         }
 
+
         await order.save({
           session,
         });
+
 
         cancelledOrderId =
           order._id;
       }
     );
 
+
+    /**
+     * ========================================================
+     * LOAD UPDATED ORDER
+     * ========================================================
+     */
     const order =
       await Order.findById(
         cancelledOrderId
-      ).populate(
-        "user",
-        "name email phone"
-      );
+      )
+        .populate(
+          "user",
+          "name email phone"
+        )
+        .populate({
+          path:
+            "delivery.agent",
 
-    return res.status(200).json({
-      success: true,
-      message:
-        "Order cancelled successfully.",
-      order,
-    });
+          select:
+            "name email phone role isActive deliveryAgentProfile",
+        })
+        .populate({
+          path:
+            "statusHistory.changedBy",
+
+          select:
+            "name email role",
+        });
+
+
+    return res
+      .status(200)
+      .json({
+        success: true,
+
+        message:
+          "Order cancelled successfully.",
+
+        order,
+      });
   } catch (error) {
     if (
       error.message ===
       "ORDER_NOT_FOUND"
     ) {
-      return res.status(404).json({
-        success: false,
-        message:
-          "Order not found.",
-      });
+      return res
+        .status(404)
+        .json({
+          success: false,
+          message:
+            "Order not found.",
+        });
     }
+
 
     if (
       error.message ===
       "ALREADY_CANCELLED"
     ) {
-      return res.status(400).json({
-        success: false,
-        message:
-          "Order is already cancelled.",
-      });
+      return res
+        .status(400)
+        .json({
+          success: false,
+          message:
+            "Order is already cancelled.",
+        });
     }
+
 
     if (
       error.message ===
       "DELIVERED_ORDER"
     ) {
-      return res.status(400).json({
-        success: false,
-        message:
-          "Delivered orders cannot be cancelled.",
-      });
+      return res
+        .status(400)
+        .json({
+          success: false,
+          message:
+            "Delivered orders cannot be cancelled.",
+        });
     }
+
 
     console.error(
       "Admin cancel order error:",
       error
     );
 
-    return res.status(500).json({
-      success: false,
-      message:
-        "Unable to cancel order.",
-    });
+
+    return res
+      .status(500)
+      .json({
+        success: false,
+
+        message:
+          "Unable to cancel order.",
+      });
   } finally {
     await session.endSession();
   }

@@ -6,6 +6,7 @@ import multer from "multer";
 import mongoose from "mongoose";
 
 import connectDB from "./config/db.js";
+
 import {
   configureCloudinary,
 } from "./config/cloudinary.js";
@@ -21,52 +22,68 @@ import cartRoutes from "./routes/cartRoutes.js";
 import wishlistRoutes from "./routes/wishlistRoutes.js";
 import orderRoutes from "./routes/orderRoutes.js";
 import adminRoutes from "./routes/adminRoutes.js";
+import deliveryRoutes from "./routes/deliveryRoutes.js";
+
 
 /**
- * Load environment variables.
+ * ============================================================
+ * LOAD ENVIRONMENT VARIABLES
+ * ============================================================
  */
 dotenv.config();
 
-/**
- * Create Express application.
- */
-const app = express();
 
 /**
- * Application port.
+ * ============================================================
+ * CREATE EXPRESS APPLICATION
+ * ============================================================
+ */
+const app =
+  express();
+
+
+/**
+ * ============================================================
+ * APPLICATION PORT
+ * ============================================================
  *
  * Render automatically provides PORT
- * during deployment.
+ * during production deployment.
  */
 const PORT =
-  process.env.PORT || 5000;
+  process.env.PORT ||
+  5000;
+
 
 /**
- * ==========================================
+ * ============================================================
  * TRUST PROXY
- * ==========================================
+ * ============================================================
  *
- * Required when NovaCart backend runs
- * behind Render's proxy.
+ * Required when the backend runs behind Render.
  *
- * Also helps secure cookies work correctly
- * in production.
+ * Also helps production cookies work correctly.
  */
 app.set(
   "trust proxy",
   1
 );
 
+
 /**
- * ==========================================
+ * ============================================================
  * CORS CONFIGURATION
- * ==========================================
+ * ============================================================
  *
- * Local frontend:
+ * Production URLs come from:
+ *
+ * CLIENT_URL
+ * VERCEL_CLIENT_URL
+ *
+ * Local development:
+ *
  * http://localhost:5173
- *
- * Production frontend:
- * Vercel URL from environment variable.
+ * http://127.0.0.1:5173
  */
 const allowedOrigins = [
   process.env.CLIENT_URL,
@@ -74,14 +91,16 @@ const allowedOrigins = [
 ]
   .filter(Boolean)
   .map((origin) =>
-    origin.replace(/\/$/, "")
+    origin.replace(
+      /\/$/,
+      ""
+    )
   );
 
+
 /**
- * Development convenience.
- *
- * This keeps localhost available even
- * if CLIENT_URL is accidentally omitted.
+ * Keep localhost access available
+ * during development.
  */
 if (
   process.env.NODE_ENV !==
@@ -91,6 +110,7 @@ if (
     "http://localhost:5173",
     "http://127.0.0.1:5173",
   ];
+
 
   developmentOrigins.forEach(
     (origin) => {
@@ -106,6 +126,7 @@ if (
     }
   );
 }
+
 
 const corsOptions = {
   origin: (
@@ -127,11 +148,13 @@ const corsOptions = {
       );
     }
 
+
     const normalizedOrigin =
       origin.replace(
         /\/$/,
         ""
       );
+
 
     if (
       allowedOrigins.includes(
@@ -144,6 +167,7 @@ const corsOptions = {
       );
     }
 
+
     return callback(
       new Error(
         "Origin is not allowed by NovaCart CORS policy."
@@ -151,7 +175,10 @@ const corsOptions = {
     );
   },
 
-  credentials: true,
+
+  credentials:
+    true,
+
 
   methods: [
     "GET",
@@ -162,132 +189,171 @@ const corsOptions = {
     "OPTIONS",
   ],
 
+
   allowedHeaders: [
     "Content-Type",
     "Authorization",
   ],
 };
 
+
 app.use(
-  cors(corsOptions)
+  cors(
+    corsOptions
+  )
 );
 
+
 /**
- * ==========================================
+ * ============================================================
  * REQUEST BODY MIDDLEWARE
- * ==========================================
+ * ============================================================
  */
 
 app.use(
   express.json({
-    limit: "2mb",
+    limit:
+      "2mb",
   })
 );
 
+
 app.use(
   express.urlencoded({
-    extended: true,
-    limit: "2mb",
+    extended:
+      true,
+
+    limit:
+      "2mb",
   })
 );
+
 
 app.use(
   cookieParser()
 );
 
+
 /**
- * ==========================================
+ * ============================================================
  * BASIC SECURITY HEADERS
- * ==========================================
+ * ============================================================
  *
- * Kept simple so we don't add unnecessary
- * extra dependencies for the college project.
+ * Kept dependency-free for this
+ * college project.
  */
 
 app.disable(
   "x-powered-by"
 );
 
+
 app.use(
-  (req, res, next) => {
+  (
+    req,
+    res,
+    next
+  ) => {
     res.setHeader(
       "X-Content-Type-Options",
       "nosniff"
     );
+
 
     res.setHeader(
       "X-Frame-Options",
       "DENY"
     );
 
+
     res.setHeader(
       "Referrer-Policy",
       "strict-origin-when-cross-origin"
     );
 
+
     next();
   }
 );
 
+
 /**
- * ==========================================
- * HEALTH CHECK
- * ==========================================
- *
- * Useful for:
- * - browser testing
- * - Render deployment
- * - uptime checks
+ * ============================================================
+ * ROOT HEALTH ROUTE
+ * ============================================================
  */
 app.get(
   "/",
-  (req, res) => {
-    return res.status(200).json({
-      success: true,
-      message:
-        "NovaCart API is running.",
-      environment:
-        process.env.NODE_ENV ||
-        "development",
-    });
+  (
+    req,
+    res
+  ) => {
+    return res
+      .status(200)
+      .json({
+        success:
+          true,
+
+        message:
+          "NovaCart API is running.",
+
+        environment:
+          process.env
+            .NODE_ENV ||
+          "development",
+      });
   }
 );
 
+
+/**
+ * ============================================================
+ * API HEALTH ROUTE
+ * ============================================================
+ */
 app.get(
   "/api/health",
-  (req, res) => {
+  (
+    req,
+    res
+  ) => {
     const databaseConnected =
       mongoose.connection
         .readyState === 1;
 
-    return res.status(
-      databaseConnected
-        ? 200
-        : 503
-    ).json({
-      success:
-        databaseConnected,
 
-      message:
+    return res
+      .status(
         databaseConnected
-          ? "NovaCart backend is healthy."
-          : "NovaCart backend is running but database is not connected.",
+          ? 200
+          : 503
+      )
+      .json({
+        success:
+          databaseConnected,
 
-      database:
-        databaseConnected
-          ? "connected"
-          : "disconnected",
+        message:
+          databaseConnected
+            ? "NovaCart backend is healthy."
+            : "NovaCart backend is running but database is not connected.",
 
-      timestamp:
-        new Date().toISOString(),
-    });
+        database:
+          databaseConnected
+            ? "connected"
+            : "disconnected",
+
+        timestamp:
+          new Date()
+            .toISOString(),
+      });
   }
 );
 
+
 /**
- * ==========================================
+ * ============================================================
  * API ROUTES
- * ==========================================
+ * ============================================================
  */
 
 app.use(
@@ -295,111 +361,162 @@ app.use(
   authRoutes
 );
 
+
 app.use(
   "/api/users",
   userRoutes
 );
+
 
 app.use(
   "/api/products",
   productRoutes
 );
 
+
 app.use(
   "/api/cart",
   cartRoutes
 );
+
 
 app.use(
   "/api/wishlist",
   wishlistRoutes
 );
 
+
 app.use(
   "/api/orders",
   orderRoutes
 );
+
 
 app.use(
   "/api/admin",
   adminRoutes
 );
 
+
 /**
- * ==========================================
- * API INFORMATION
- * ==========================================
+ * ============================================================
+ * DELIVERY AGENT MODULE
+ * ============================================================
  *
- * Useful during development.
+ * New protected delivery routes:
+ *
+ * GET   /api/delivery/dashboard
+ * GET   /api/delivery/profile
+ * PATCH /api/delivery/availability
+ *
+ * GET   /api/delivery/orders
+ * GET   /api/delivery/orders/:orderId
+ *
+ * PATCH /api/delivery/orders/:orderId/accept
+ * PATCH /api/delivery/orders/:orderId/status
+ * PATCH /api/delivery/orders/:orderId/note
+ */
+app.use(
+  "/api/delivery",
+  deliveryRoutes
+);
+
+
+/**
+ * ============================================================
+ * API INFORMATION
+ * ============================================================
  */
 app.get(
   "/api",
-  (req, res) => {
-    return res.status(200).json({
-      success: true,
+  (
+    req,
+    res
+  ) => {
+    return res
+      .status(200)
+      .json({
+        success:
+          true,
 
-      name:
-        "NovaCart API",
+        name:
+          "NovaCart API",
 
-      version:
-        "1.0.0",
+        version:
+          "1.0.0",
 
-      endpoints: {
-        auth:
-          "/api/auth",
+        endpoints: {
+          auth:
+            "/api/auth",
 
-        users:
-          "/api/users",
+          users:
+            "/api/users",
 
-        products:
-          "/api/products",
+          products:
+            "/api/products",
 
-        cart:
-          "/api/cart",
+          cart:
+            "/api/cart",
 
-        wishlist:
-          "/api/wishlist",
+          wishlist:
+            "/api/wishlist",
 
-        orders:
-          "/api/orders",
+          orders:
+            "/api/orders",
 
-        admin:
-          "/api/admin",
+          admin:
+            "/api/admin",
 
-        health:
-          "/api/health",
-      },
-    });
+          delivery:
+            "/api/delivery",
+
+          health:
+            "/api/health",
+        },
+      });
   }
 );
 
+
 /**
- * ==========================================
+ * ============================================================
  * 404 HANDLER
- * ==========================================
+ * ============================================================
  *
  * Must remain after every valid route.
  */
 app.use(
-  (req, res) => {
-    return res.status(404).json({
-      success: false,
-      message:
-        `Route not found: ${req.method} ${req.originalUrl}`,
-    });
+  (
+    req,
+    res
+  ) => {
+    return res
+      .status(404)
+      .json({
+        success:
+          false,
+
+        message:
+          `Route not found: ${req.method} ${req.originalUrl}`,
+      });
   }
 );
 
+
 /**
- * ==========================================
+ * ============================================================
  * GLOBAL ERROR HANDLER
- * ==========================================
+ * ============================================================
  *
  * Handles:
+ *
  * - Multer errors
  * - Cloudinary upload errors
  * - CORS errors
  * - malformed JSON
+ * - MongoDB duplicate keys
+ * - MongoDB CastError
+ * - Mongoose validation errors
  * - unexpected Express errors
  */
 app.use(
@@ -414,8 +531,11 @@ app.use(
       error
     );
 
+
     /**
-     * Multer upload errors.
+     * ========================================================
+     * MULTER ERRORS
+     * ========================================================
      */
     if (
       error instanceof
@@ -428,11 +548,14 @@ app.use(
         return res
           .status(400)
           .json({
-            success: false,
+            success:
+              false,
+
             message:
               "Image size cannot exceed 5 MB.",
           });
       }
+
 
       if (
         error.code ===
@@ -441,11 +564,14 @@ app.use(
         return res
           .status(400)
           .json({
-            success: false,
+            success:
+              false,
+
             message:
               "Too many files were uploaded.",
           });
       }
+
 
       if (
         error.code ===
@@ -454,24 +580,32 @@ app.use(
         return res
           .status(400)
           .json({
-            success: false,
+            success:
+              false,
+
             message:
               "Unexpected image field or too many product images.",
           });
       }
 
+
       return res
         .status(400)
         .json({
-          success: false,
+          success:
+            false,
+
           message:
             error.message ||
             "File upload failed.",
         });
     }
 
+
     /**
-     * File type errors from uploadMiddleware.
+     * ========================================================
+     * FILE TYPE ERROR
+     * ========================================================
      */
     if (
       error.message ===
@@ -480,14 +614,19 @@ app.use(
       return res
         .status(400)
         .json({
-          success: false,
+          success:
+            false,
+
           message:
             error.message,
         });
     }
 
+
     /**
-     * CORS error.
+     * ========================================================
+     * CORS ERROR
+     * ========================================================
      */
     if (
       error.message ===
@@ -496,14 +635,19 @@ app.use(
       return res
         .status(403)
         .json({
-          success: false,
+          success:
+            false,
+
           message:
             "This website is not allowed to access the NovaCart API.",
         });
     }
 
+
     /**
-     * Malformed JSON.
+     * ========================================================
+     * MALFORMED JSON
+     * ========================================================
      */
     if (
       error instanceof
@@ -515,14 +659,19 @@ app.use(
       return res
         .status(400)
         .json({
-          success: false,
+          success:
+            false,
+
           message:
             "Invalid JSON request body.",
         });
     }
 
+
     /**
-     * MongoDB duplicate key.
+     * ========================================================
+     * MONGODB DUPLICATE KEY
+     * ========================================================
      */
     if (
       error?.code ===
@@ -531,14 +680,19 @@ app.use(
       return res
         .status(409)
         .json({
-          success: false,
+          success:
+            false,
+
           message:
             "A record with this value already exists.",
         });
     }
 
+
     /**
-     * MongoDB invalid ObjectId.
+     * ========================================================
+     * INVALID MONGODB OBJECT ID
+     * ========================================================
      */
     if (
       error?.name ===
@@ -547,14 +701,19 @@ app.use(
       return res
         .status(400)
         .json({
-          success: false,
+          success:
+            false,
+
           message:
             "Invalid resource identifier.",
         });
     }
 
+
     /**
-     * Mongoose validation errors.
+     * ========================================================
+     * MONGOOSE VALIDATION
+     * ========================================================
      */
     if (
       error?.name ===
@@ -566,10 +725,12 @@ app.use(
             {}
         )[0];
 
+
       return res
         .status(400)
         .json({
-          success: false,
+          success:
+            false,
 
           message:
             firstError
@@ -578,8 +739,11 @@ app.use(
         });
     }
 
+
     /**
-     * Generic fallback.
+     * ========================================================
+     * GENERIC FALLBACK
+     * ========================================================
      */
     return res
       .status(
@@ -587,7 +751,8 @@ app.use(
           500
       )
       .json({
-        success: false,
+        success:
+          false,
 
         message:
           process.env
@@ -600,27 +765,35 @@ app.use(
   }
 );
 
+
 /**
- * ==========================================
+ * ============================================================
  * SERVER STARTUP
- * ==========================================
+ * ============================================================
  */
 const startServer =
   async () => {
     try {
       /**
-       * MongoDB Atlas connection.
+       * ======================================================
+       * MONGODB ATLAS
+       * ======================================================
        */
       await connectDB();
 
+
       /**
-       * Cloudinary configuration.
+       * ======================================================
+       * CLOUDINARY
+       * ======================================================
        *
        * Backend can still start during
-       * early development without credentials.
+       * early development if credentials
+       * are unavailable.
        */
       const cloudinaryReady =
         configureCloudinary();
+
 
       if (
         cloudinaryReady
@@ -630,14 +803,22 @@ const startServer =
         );
       }
 
+
       /**
-       * Create or verify administrator.
+       * ======================================================
+       * ADMIN ACCOUNT
+       * ======================================================
+       *
+       * Preserve your existing automatic
+       * admin account initialization.
        */
       await ensureAdminUser();
 
+
       /**
-       * Start Express only after
-       * MongoDB connection succeeds.
+       * ======================================================
+       * START EXPRESS
+       * ======================================================
        */
       app.listen(
         PORT,
@@ -646,13 +827,16 @@ const startServer =
             "=========================================="
           );
 
+
           console.log(
             "        NovaCart Backend Started"
           );
 
+
           console.log(
             "=========================================="
           );
+
 
           console.log(
             `Environment : ${
@@ -662,17 +846,26 @@ const startServer =
             }`
           );
 
+
           console.log(
             `Port        : ${PORT}`
           );
+
 
           console.log(
             `API         : http://localhost:${PORT}/api`
           );
 
+
           console.log(
             `Health      : http://localhost:${PORT}/api/health`
           );
+
+
+          console.log(
+            `Delivery    : http://localhost:${PORT}/api/delivery`
+          );
+
 
           console.log(
             "=========================================="
@@ -685,19 +878,23 @@ const startServer =
         error
       );
 
+
       process.exit(1);
     }
   };
 
+
 /**
- * ==========================================
+ * ============================================================
  * PROCESS ERROR HANDLING
- * ==========================================
+ * ============================================================
  */
 
 process.on(
   "unhandledRejection",
-  (reason) => {
+  (
+    reason
+  ) => {
     console.error(
       "Unhandled Promise Rejection:",
       reason
@@ -705,35 +902,48 @@ process.on(
   }
 );
 
+
 process.on(
   "uncaughtException",
-  (error) => {
+  (
+    error
+  ) => {
     console.error(
       "Uncaught Exception:",
       error
     );
 
+
     process.exit(1);
   }
 );
 
+
 /**
- * Graceful shutdown.
+ * ============================================================
+ * GRACEFUL SHUTDOWN
+ * ============================================================
  */
 const shutdown =
-  async (signal) => {
+  async (
+    signal
+  ) => {
     try {
       console.log(
         `${signal} received. Shutting down NovaCart...`
       );
+
 
       if (
         mongoose.connection
           .readyState !==
         0
       ) {
-        await mongoose.connection.close();
+        await mongoose
+          .connection
+          .close();
       }
+
 
       process.exit(0);
     } catch (error) {
@@ -742,9 +952,11 @@ const shutdown =
         error
       );
 
+
       process.exit(1);
     }
   };
+
 
 process.on(
   "SIGTERM",
@@ -754,6 +966,7 @@ process.on(
     )
 );
 
+
 process.on(
   "SIGINT",
   () =>
@@ -762,7 +975,10 @@ process.on(
     )
 );
 
+
 /**
- * Start NovaCart.
+ * ============================================================
+ * START NOVACART
+ * ============================================================
  */
 startServer();

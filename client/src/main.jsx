@@ -23,6 +23,8 @@ import "./styles/global.css";
 import "./styles/components.css";
 import "./styles/pages.css";
 import "./styles/admin.css";
+import "./styles/delivery.css";
+
 
 ReactDOM.createRoot(
   document.getElementById(
@@ -30,14 +32,24 @@ ReactDOM.createRoot(
   )
 ).render(
   <React.StrictMode>
+
     <BrowserRouter>
+
       <AuthProvider>
+
         <CartProvider>
+
           <WishlistProvider>
+
             <App />
+
           </WishlistProvider>
+
         </CartProvider>
+
       </AuthProvider>
+
     </BrowserRouter>
+
   </React.StrictMode>
 );

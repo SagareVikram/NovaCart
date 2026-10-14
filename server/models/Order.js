@@ -1,16 +1,11 @@
 import mongoose from "mongoose";
 
 /**
- * Order Item Schema
+ * ============================================================
+ * ORDER ITEM SCHEMA
+ * ============================================================
  *
- * We store a snapshot of important product information.
- * This is necessary because the original product may later:
- * - change price
- * - change name
- * - be deactivated
- * - be deleted
- *
- * Existing orders must still remain readable.
+ * Snapshot of product details at the time of order.
  */
 const orderItemSchema = new mongoose.Schema(
   {
@@ -64,14 +59,11 @@ const orderItemSchema = new mongoose.Schema(
   }
 );
 
+
 /**
- * Shipping Address Snapshot
- *
- * The address is copied into the order instead of referencing
- * the user's saved address directly.
- *
- * This ensures an old order still shows the original address
- * even if the user edits or deletes that address later.
+ * ============================================================
+ * SHIPPING ADDRESS SNAPSHOT
+ * ============================================================
  */
 const shippingAddressSchema = new mongoose.Schema(
   {
@@ -137,32 +129,36 @@ const shippingAddressSchema = new mongoose.Schema(
   }
 );
 
+
 /**
- * Payment Details
- *
- * NovaCart college project will initially support demo payments:
- * - Cash on Delivery
- * - UPI
- * - Card
- *
- * The schema is also flexible enough for a real payment gateway later.
+ * ============================================================
+ * PAYMENT SCHEMA
+ * ============================================================
  */
 const paymentSchema = new mongoose.Schema(
   {
     method: {
       type: String,
-      enum: ["cod", "upi", "card"],
+
+      enum: [
+        "cod",
+        "upi",
+        "card",
+      ],
+
       required: true,
     },
 
     status: {
       type: String,
+
       enum: [
         "pending",
         "paid",
         "failed",
         "refunded",
       ],
+
       default: "pending",
     },
 
@@ -187,23 +183,18 @@ const paymentSchema = new mongoose.Schema(
   }
 );
 
+
 /**
- * Order Status History
- *
- * This allows us to display:
- *
- * Order Placed
- * Processing
- * Shipped
- * Delivered
- *
- * along with timestamps.
+ * ============================================================
+ * ORDER STATUS HISTORY
+ * ============================================================
  */
 const statusHistorySchema = new mongoose.Schema(
   {
     status: {
       type: String,
       required: true,
+
       enum: [
         "placed",
         "confirmed",
@@ -226,14 +217,124 @@ const statusHistorySchema = new mongoose.Schema(
       type: Date,
       default: Date.now,
     },
+
+    /**
+     * Who changed the status.
+     *
+     * Can be:
+     * admin
+     * delivery_agent
+     */
+    changedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      default: null,
+    },
+
+    changedByRole: {
+      type: String,
+
+      enum: [
+        "admin",
+        "delivery_agent",
+        "system",
+      ],
+
+      default: "system",
+    },
   },
   {
     _id: false,
   }
 );
 
+
 /**
- * NovaCart Order Schema
+ * ============================================================
+ * DELIVERY DETAILS
+ * ============================================================
+ *
+ * These fields are used by the delivery-agent module.
+ */
+const deliverySchema = new mongoose.Schema(
+  {
+    /**
+     * Assigned delivery agent.
+     */
+    agent: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      default: null,
+      index: true,
+    },
+
+    /**
+     * When admin assigned the order.
+     */
+    assignedAt: {
+      type: Date,
+      default: null,
+    },
+
+    /**
+     * When agent accepted/started handling it.
+     */
+    acceptedAt: {
+      type: Date,
+      default: null,
+    },
+
+    /**
+     * When the shipment was marked shipped.
+     */
+    shippedAt: {
+      type: Date,
+      default: null,
+    },
+
+    /**
+     * When marked out for delivery.
+     */
+    outForDeliveryAt: {
+      type: Date,
+      default: null,
+    },
+
+    /**
+     * Delivery-agent note.
+     */
+    deliveryNote: {
+      type: String,
+      trim: true,
+      maxlength: 500,
+      default: "",
+    },
+
+    /**
+     * Optional proof text/reference for future use.
+     *
+     * Later we can store:
+     * - OTP confirmation
+     * - receiver name
+     * - proof image URL
+     */
+    proofOfDelivery: {
+      type: String,
+      trim: true,
+      maxlength: 500,
+      default: "",
+    },
+  },
+  {
+    _id: false,
+  }
+);
+
+
+/**
+ * ============================================================
+ * NOVACART ORDER SCHEMA
+ * ============================================================
  */
 const orderSchema = new mongoose.Schema(
   {
@@ -259,10 +360,14 @@ const orderSchema = new mongoose.Schema(
 
       validate: {
         validator: function (items) {
-          return Array.isArray(items) && items.length > 0;
+          return (
+            Array.isArray(items) &&
+            items.length > 0
+          );
         },
 
-        message: "An order must contain at least one product.",
+        message:
+          "An order must contain at least one product.",
       },
     },
 
@@ -326,6 +431,7 @@ const orderSchema = new mongoose.Schema(
       ],
 
       default: "placed",
+
       index: true,
     },
 
@@ -335,10 +441,33 @@ const orderSchema = new mongoose.Schema(
       default: () => [
         {
           status: "placed",
-          message: "Order placed successfully.",
-          changedAt: new Date(),
+          message:
+            "Order placed successfully.",
+          changedAt:
+            new Date(),
+          changedBy:
+            null,
+          changedByRole:
+            "system",
         },
       ],
+    },
+
+    /**
+     * Delivery-agent information.
+     */
+    delivery: {
+      type: deliverySchema,
+
+      default: () => ({
+        agent: null,
+        assignedAt: null,
+        acceptedAt: null,
+        shippedAt: null,
+        outForDeliveryAt: null,
+        deliveryNote: "",
+        proofOfDelivery: "",
+      }),
     },
 
     customerNote: {
@@ -382,152 +511,385 @@ const orderSchema = new mongoose.Schema(
   }
 );
 
+
 /**
- * Generate an order number.
+ * ============================================================
+ * GENERATE ORDER NUMBER
+ * ============================================================
  *
  * Example:
- * NOVA-20261007-AB12CD
+ * NOVA-20261014-AB12CD
  */
-orderSchema.statics.generateOrderNumber = function () {
-  const date = new Date();
+orderSchema.statics.generateOrderNumber =
+  function () {
+    const date =
+      new Date();
 
-  const year = date.getFullYear();
+    const year =
+      date.getFullYear();
 
-  const month = String(
-    date.getMonth() + 1
-  ).padStart(2, "0");
+    const month =
+      String(
+        date.getMonth() + 1
+      ).padStart(
+        2,
+        "0"
+      );
 
-  const day = String(
-    date.getDate()
-  ).padStart(2, "0");
+    const day =
+      String(
+        date.getDate()
+      ).padStart(
+        2,
+        "0"
+      );
 
-  const randomPart = Math.random()
-    .toString(36)
-    .substring(2, 8)
-    .toUpperCase();
+    const randomPart =
+      Math.random()
+        .toString(36)
+        .substring(
+          2,
+          8
+        )
+        .toUpperCase();
 
-  return `NOVA-${year}${month}${day}-${randomPart}`;
-};
+    return `NOVA-${year}${month}${day}-${randomPart}`;
+  };
+
 
 /**
- * Automatically calculate item totals and main order totals.
+ * ============================================================
+ * CALCULATE ORDER TOTALS
+ * ============================================================
  */
-orderSchema.pre("validate", function () {
-  if (!Array.isArray(this.items)) {
-    return;
-  }
+orderSchema.pre(
+  "validate",
+  function () {
+    if (
+      !Array.isArray(
+        this.items
+      )
+    ) {
+      return;
+    }
 
-  let subtotal = 0;
-  let totalItems = 0;
+    let subtotal = 0;
+    let totalItems = 0;
 
-  this.items.forEach((item) => {
-    item.totalPrice = Number(
-      (item.unitPrice * item.quantity).toFixed(2)
+    this.items.forEach(
+      (item) => {
+        item.totalPrice =
+          Number(
+            (
+              item.unitPrice *
+              item.quantity
+            ).toFixed(2)
+          );
+
+        subtotal +=
+          item.totalPrice;
+
+        totalItems +=
+          item.quantity;
+      }
     );
 
-    subtotal += item.totalPrice;
+    this.subtotal =
+      Number(
+        subtotal.toFixed(2)
+      );
 
-    totalItems += item.quantity;
-  });
+    this.totalItems =
+      totalItems;
 
-  this.subtotal = Number(subtotal.toFixed(2));
+    const shippingCharge =
+      Number(
+        this.shippingCharge
+      ) || 0;
 
-  this.totalItems = totalItems;
+    const taxAmount =
+      Number(
+        this.taxAmount
+      ) || 0;
 
-  const shippingCharge =
-    Number(this.shippingCharge) || 0;
+    const discountAmount =
+      Number(
+        this.discountAmount
+      ) || 0;
 
-  const taxAmount =
-    Number(this.taxAmount) || 0;
+    const calculatedTotal =
+      this.subtotal +
+      shippingCharge +
+      taxAmount -
+      discountAmount;
 
-  const discountAmount =
-    Number(this.discountAmount) || 0;
+    this.totalAmount =
+      Number(
+        Math.max(
+          calculatedTotal,
+          0
+        ).toFixed(2)
+      );
+  }
+);
 
-  const calculatedTotal =
-    this.subtotal +
-    shippingCharge +
-    taxAmount -
-    discountAmount;
-
-  this.totalAmount = Number(
-    Math.max(calculatedTotal, 0).toFixed(2)
-  );
-});
 
 /**
- * Keep important timestamps synchronized with status.
+ * ============================================================
+ * STATUS TIMESTAMP SYNCHRONIZATION
+ * ============================================================
  */
-orderSchema.pre("save", function () {
-  if (!this.isModified("orderStatus")) {
-    return;
-  }
+orderSchema.pre(
+  "save",
+  function () {
+    if (
+      !this.isModified(
+        "orderStatus"
+      )
+    ) {
+      return;
+    }
 
-  if (this.orderStatus === "delivered") {
-    this.deliveredAt =
-      this.deliveredAt || new Date();
+    /**
+     * SHIPPED
+     */
+    if (
+      this.orderStatus ===
+      "shipped"
+    ) {
+      this.delivery =
+        this.delivery || {};
 
-    if (this.payment.method === "cod") {
-      this.payment.status = "paid";
+      this.delivery.shippedAt =
+        this.delivery.shippedAt ||
+        new Date();
+    }
 
-      this.payment.paidAt =
-        this.payment.paidAt || new Date();
+    /**
+     * OUT FOR DELIVERY
+     */
+    if (
+      this.orderStatus ===
+      "out_for_delivery"
+    ) {
+      this.delivery =
+        this.delivery || {};
+
+      this.delivery
+        .outForDeliveryAt =
+        this.delivery
+          .outForDeliveryAt ||
+        new Date();
+    }
+
+    /**
+     * DELIVERED
+     */
+    if (
+      this.orderStatus ===
+      "delivered"
+    ) {
+      this.deliveredAt =
+        this.deliveredAt ||
+        new Date();
+
+      /**
+       * COD becomes paid automatically
+       * after successful delivery.
+       */
+      if (
+        this.payment.method ===
+        "cod"
+      ) {
+        this.payment.status =
+          "paid";
+
+        this.payment.paidAt =
+          this.payment.paidAt ||
+          new Date();
+      }
+    }
+
+    /**
+     * CANCELLED
+     */
+    if (
+      this.orderStatus ===
+      "cancelled"
+    ) {
+      this.cancelledAt =
+        this.cancelledAt ||
+        new Date();
     }
   }
+);
 
-  if (this.orderStatus === "cancelled") {
-    this.cancelledAt =
-      this.cancelledAt || new Date();
-  }
-});
 
 /**
- * Add an order status entry safely.
+ * ============================================================
+ * ADD STATUS HISTORY
+ * ============================================================
  *
- * Controllers can call:
+ * Existing admin controller can still call:
  *
  * order.addStatusHistory(
  *   "shipped",
- *   "Your order has been shipped."
+ *   "Order shipped."
+ * );
+ *
+ * Delivery controller can call:
+ *
+ * order.addStatusHistory(
+ *   "out_for_delivery",
+ *   "Order is out for delivery.",
+ *   req.user._id,
+ *   "delivery_agent"
  * );
  */
-orderSchema.methods.addStatusHistory = function (
-  status,
-  message = ""
-) {
-  this.statusHistory.push({
+orderSchema.methods.addStatusHistory =
+  function (
     status,
-    message,
-    changedAt: new Date(),
-  });
+    message = "",
+    changedBy = null,
+    changedByRole = "system"
+  ) {
+    this.statusHistory.push({
+      status,
+      message,
+      changedAt:
+        new Date(),
+      changedBy,
+      changedByRole,
+    });
 
-  this.orderStatus = status;
-};
+    this.orderStatus =
+      status;
+  };
+
 
 /**
- * Check whether a customer is still allowed
- * to cancel this order.
+ * ============================================================
+ * ASSIGN DELIVERY AGENT
+ * ============================================================
  */
-orderSchema.methods.canBeCancelled = function () {
-  return [
-    "placed",
-    "confirmed",
-    "processing",
-  ].includes(this.orderStatus);
-};
+orderSchema.methods.assignDeliveryAgent =
+  function (
+    agentId
+  ) {
+    this.delivery =
+      this.delivery || {};
+
+    this.delivery.agent =
+      agentId;
+
+    this.delivery.assignedAt =
+      new Date();
+
+    this.delivery.acceptedAt =
+      null;
+  };
+
 
 /**
- * API JSON cleanup.
+ * ============================================================
+ * REMOVE DELIVERY AGENT
+ * ============================================================
  */
-orderSchema.set("toJSON", {
-  transform: (doc, ret) => {
-    delete ret.__v;
+orderSchema.methods.removeDeliveryAgent =
+  function () {
+    this.delivery =
+      this.delivery || {};
 
-    return ret;
-  },
-});
+    this.delivery.agent =
+      null;
+
+    this.delivery.assignedAt =
+      null;
+
+    this.delivery.acceptedAt =
+      null;
+  };
+
 
 /**
- * Useful indexes for user and admin order pages.
+ * ============================================================
+ * CHECK WHETHER ORDER HAS DELIVERY AGENT
+ * ============================================================
+ */
+orderSchema.methods.hasDeliveryAgent =
+  function () {
+    return Boolean(
+      this.delivery?.agent
+    );
+  };
+
+
+/**
+ * ============================================================
+ * CUSTOMER CANCELLATION CHECK
+ * ============================================================
+ */
+orderSchema.methods.canBeCancelled =
+  function () {
+    return [
+      "placed",
+      "confirmed",
+      "processing",
+    ].includes(
+      this.orderStatus
+    );
+  };
+
+
+/**
+ * ============================================================
+ * DELIVERY AGENT STATUS CHECK
+ * ============================================================
+ *
+ * Delivery agents should not be able to:
+ * - place
+ * - confirm
+ * - cancel
+ *
+ * They should handle only delivery-related
+ * status transitions.
+ */
+orderSchema.methods.canDeliveryAgentUpdate =
+  function () {
+    return [
+      "processing",
+      "shipped",
+      "out_for_delivery",
+    ].includes(
+      this.orderStatus
+    );
+  };
+
+
+/**
+ * ============================================================
+ * JSON CLEANUP
+ * ============================================================
+ */
+orderSchema.set(
+  "toJSON",
+  {
+    transform: (
+      doc,
+      ret
+    ) => {
+      delete ret.__v;
+
+      return ret;
+    },
+  }
+);
+
+
+/**
+ * ============================================================
+ * INDEXES
+ * ============================================================
  */
 orderSchema.index({
   user: 1,
@@ -545,14 +907,26 @@ orderSchema.index({
 });
 
 orderSchema.index({
+  "delivery.agent": 1,
+  orderStatus: 1,
   createdAt: -1,
 });
 
+orderSchema.index({
+  createdAt: -1,
+});
+
+
 /**
- * Avoid model overwrite errors during development.
+ * ============================================================
+ * MODEL
+ * ============================================================
  */
 const Order =
   mongoose.models.Order ||
-  mongoose.model("Order", orderSchema);
+  mongoose.model(
+    "Order",
+    orderSchema
+  );
 
 export default Order;
