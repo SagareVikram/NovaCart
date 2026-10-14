@@ -68,6 +68,86 @@ const generateUniqueSlug = async (
   }
 };
 
+
+/**
+ * Generate a unique automatic SKU.
+ *
+ * Format:
+ * NOVA-0001
+ * NOVA-0002
+ * NOVA-0003
+ */
+const generateUniqueSku = async () => {
+  const products =
+    await Product.find({
+      sku: {
+        $regex:
+          /^NOVA-\d+$/i,
+      },
+    })
+      .select("sku")
+      .lean();
+
+  let highestNumber = 0;
+
+  for (
+    const product
+    of products
+  ) {
+    const match =
+      String(
+        product.sku || ""
+      ).match(
+        /^NOVA-(\d+)$/i
+      );
+
+    if (!match) {
+      continue;
+    }
+
+    const number =
+      Number(
+        match[1]
+      );
+
+    if (
+      Number.isInteger(
+        number
+      ) &&
+      number >
+        highestNumber
+    ) {
+      highestNumber =
+        number;
+    }
+  }
+
+  let nextNumber =
+    highestNumber + 1;
+
+  while (true) {
+    const sku =
+      `NOVA-${String(
+        nextNumber
+      ).padStart(
+        4,
+        "0"
+      )}`;
+
+    const exists =
+      await Product.exists({
+        sku,
+      });
+
+    if (!exists) {
+      return sku;
+    }
+
+    nextNumber += 1;
+  }
+};
+
+
 /**
  * Parse product specifications.
  */
@@ -642,6 +722,165 @@ const getAdminProducts = async (
 };
 
 /**
+ * GET /api/admin/products/meta/categories
+ *
+ * Returns all category/subcategory values
+ * currently used by products.
+ *
+ * This allows the admin product form to show
+ * existing categories while still allowing
+ * new values through "Other".
+ */
+const getProductCategories =
+  async (
+    req,
+    res
+  ) => {
+    try {
+      const products =
+        await Product.find({})
+          .select(
+            "category subCategory"
+          )
+          .lean();
+
+      const categoryMap =
+        new Map();
+
+      for (
+        const product
+        of products
+      ) {
+        const category =
+          String(
+            product.category ||
+              ""
+          ).trim();
+
+        const subCategory =
+          String(
+            product.subCategory ||
+              ""
+          ).trim();
+
+        if (!category) {
+          continue;
+        }
+
+        /**
+         * Preserve the original category
+         * spelling while comparing
+         * case-insensitively.
+         */
+        const categoryKey =
+          category.toLowerCase();
+
+        if (
+          !categoryMap.has(
+            categoryKey
+          )
+        ) {
+          categoryMap.set(
+            categoryKey,
+            {
+              name:
+                category,
+
+              subCategories:
+                new Map(),
+            }
+          );
+        }
+
+        if (subCategory) {
+          const currentCategory =
+            categoryMap.get(
+              categoryKey
+            );
+
+          const subCategoryKey =
+            subCategory.toLowerCase();
+
+          if (
+            !currentCategory
+              .subCategories
+              .has(
+                subCategoryKey
+              )
+          ) {
+            currentCategory
+              .subCategories
+              .set(
+                subCategoryKey,
+                subCategory
+              );
+          }
+        }
+      }
+
+      const categories =
+        Array.from(
+          categoryMap.values()
+        )
+          .map(
+            (
+              category
+            ) => ({
+              name:
+                category.name,
+
+              subCategories:
+                Array.from(
+                  category
+                    .subCategories
+                    .values()
+                ).sort(
+                  (
+                    first,
+                    second
+                  ) =>
+                    first.localeCompare(
+                      second
+                    )
+                ),
+            })
+          )
+          .sort(
+            (
+              first,
+              second
+            ) =>
+              first.name.localeCompare(
+                second.name
+              )
+          );
+
+      return res
+        .status(200)
+        .json({
+          success: true,
+          categories,
+        });
+    } catch (
+      error
+    ) {
+      console.error(
+        "Get product categories error:",
+        error
+      );
+
+      return res
+        .status(500)
+        .json({
+          success: false,
+          message:
+            "Unable to load product categories.",
+        });
+    }
+  };
+
+
+/**
  * GET /api/admin/products/:productId
  */
 const getAdminProductById =
@@ -695,6 +934,11 @@ const getAdminProductById =
 /**
  * POST /api/admin/products
  */
+/**
+ * POST /api/admin/products
+ *
+ * SKU is generated automatically.
+ */
 const createProduct = async (
   req,
   res
@@ -707,7 +951,6 @@ const createProduct = async (
       category,
       subCategory = "",
       brand = "",
-      sku,
       price,
       discountPrice,
       stock,
@@ -718,53 +961,121 @@ const createProduct = async (
       isActive,
     } = req.body;
 
+    /**
+     * SKU is NOT expected from frontend.
+     * It is generated automatically below.
+     */
     if (
       !name ||
       !shortDescription ||
       !description ||
       !category ||
-      !sku ||
       price === undefined ||
-      stock === undefined
+      price === "" ||
+      stock === undefined ||
+      stock === ""
     ) {
-      return res.status(400).json({
-        success: false,
-        message:
-          "Name, description, category, SKU, price and stock are required.",
-      });
+      return res
+        .status(400)
+        .json({
+          success: false,
+          message:
+            "Name, short description, description, category, price and stock are required.",
+        });
     }
 
-    const cleanSku =
-      String(sku)
-        .trim()
-        .toUpperCase();
-
-    const existingSku =
-      await Product.exists({
-        sku: cleanSku,
-      });
-
-    if (existingSku) {
-      return res.status(409).json({
-        success: false,
-        message:
-          "A product with this SKU already exists.",
-      });
-    }
-
-    const slug =
-      await generateUniqueSlug(
+    const cleanName =
+      String(
         name
-      );
+      ).trim();
 
-    const images =
-      getUploadedImages(req);
+    const cleanShortDescription =
+      String(
+        shortDescription
+      ).trim();
+
+    const cleanDescription =
+      String(
+        description
+      ).trim();
+
+    const cleanCategory =
+      String(
+        category
+      ).trim();
+
+    const cleanSubCategory =
+      String(
+        subCategory || ""
+      ).trim();
+
+    const cleanBrand =
+      String(
+        brand || ""
+      ).trim();
+
+    if (
+      cleanName.length <
+      2
+    ) {
+      return res
+        .status(400)
+        .json({
+          success: false,
+          message:
+            "Product name must contain at least 2 characters.",
+        });
+    }
+
+    if (!cleanCategory) {
+      return res
+        .status(400)
+        .json({
+          success: false,
+          message:
+            "Product category is required.",
+        });
+    }
 
     const numericPrice =
-      Number(price);
+      Number(
+        price
+      );
+
+    if (
+      !Number.isFinite(
+        numericPrice
+      ) ||
+      numericPrice < 0
+    ) {
+      return res
+        .status(400)
+        .json({
+          success: false,
+          message:
+            "Product price must be a valid number greater than or equal to 0.",
+        });
+    }
 
     const numericStock =
-      Number(stock);
+      Number(
+        stock
+      );
+
+    if (
+      !Number.isInteger(
+        numericStock
+      ) ||
+      numericStock < 0
+    ) {
+      return res
+        .status(400)
+        .json({
+          success: false,
+          message:
+            "Product stock must be a whole number greater than or equal to 0.",
+        });
+    }
 
     const parsedDiscountPrice =
       discountPrice ===
@@ -778,42 +1089,117 @@ const createProduct = async (
             discountPrice
           );
 
+    if (
+      parsedDiscountPrice !==
+        null &&
+      (
+        !Number.isFinite(
+          parsedDiscountPrice
+        ) ||
+        parsedDiscountPrice <
+          0
+      )
+    ) {
+      return res
+        .status(400)
+        .json({
+          success: false,
+          message:
+            "Discount price must be a valid number greater than or equal to 0.",
+        });
+    }
+
+    if (
+      parsedDiscountPrice !==
+        null &&
+      parsedDiscountPrice >=
+        numericPrice
+    ) {
+      return res
+        .status(400)
+        .json({
+          success: false,
+          message:
+            "Discount price must be lower than the regular price.",
+        });
+    }
+
+    const parsedLowStockThreshold =
+      lowStockThreshold ===
+        undefined ||
+      lowStockThreshold ===
+        null ||
+      lowStockThreshold ===
+        ""
+        ? 5
+        : Number(
+            lowStockThreshold
+          );
+
+    if (
+      !Number.isInteger(
+        parsedLowStockThreshold
+      ) ||
+      parsedLowStockThreshold <
+        0
+    ) {
+      return res
+        .status(400)
+        .json({
+          success: false,
+          message:
+            "Low stock threshold must be a whole number greater than or equal to 0.",
+        });
+    }
+
+    /**
+     * Generate URL slug.
+     */
+    const slug =
+      await generateUniqueSlug(
+        cleanName
+      );
+
+    /**
+     * Generate SKU automatically.
+     */
+    const sku =
+      await generateUniqueSku();
+
+    /**
+     * Get uploaded Cloudinary images.
+     */
+    const images =
+      getUploadedImages(
+        req
+      );
+
     const product =
       await Product.create({
         name:
-          String(
-            name
-          ).trim(),
+          cleanName,
 
         slug,
 
         shortDescription:
-          String(
-            shortDescription
-          ).trim(),
+          cleanShortDescription,
 
         description:
-          String(
-            description
-          ).trim(),
+          cleanDescription,
 
         category:
-          String(
-            category
-          ).trim(),
+          cleanCategory,
 
         subCategory:
-          String(
-            subCategory
-          ).trim(),
+          cleanSubCategory,
 
         brand:
-          String(
-            brand
-          ).trim(),
+          cleanBrand,
 
-        sku:
-          cleanSku,
+        /**
+         * Auto-generated.
+         */
+        sku,
 
         price:
           numericPrice,
@@ -825,14 +1211,7 @@ const createProduct = async (
           numericStock,
 
         lowStockThreshold:
-          lowStockThreshold ===
-            undefined ||
-          lowStockThreshold ===
-            ""
-            ? 5
-            : Number(
-                lowStockThreshold
-              ),
+          parsedLowStockThreshold,
 
         images,
 
@@ -842,7 +1221,9 @@ const createProduct = async (
           ),
 
         tags:
-          parseTags(tags),
+          parseTags(
+            tags
+          ),
 
         isFeatured:
           parseBoolean(
@@ -857,15 +1238,28 @@ const createProduct = async (
           ),
       });
 
-    return res.status(201).json({
-      success: true,
-      message:
-        "Product created successfully.",
-      product,
-    });
-  } catch (error) {
+    return res
+      .status(201)
+      .json({
+        success: true,
+
+        message:
+          `Product created successfully with SKU ${sku}.`,
+
+        product,
+      });
+  } catch (
+    error
+  ) {
+    /**
+     * If product creation failed after
+     * Cloudinary upload, remove those
+     * uploaded files.
+     */
     const uploadedImages =
-      getUploadedImages(req);
+      getUploadedImages(
+        req
+      );
 
     for (
       const image
@@ -880,11 +1274,13 @@ const createProduct = async (
       error?.code ===
       11000
     ) {
-      return res.status(409).json({
-        success: false,
-        message:
-          "Product SKU or slug already exists.",
-      });
+      return res
+        .status(409)
+        .json({
+          success: false,
+          message:
+            "Product SKU or slug already exists. Please try again.",
+        });
     }
 
     if (
@@ -896,12 +1292,15 @@ const createProduct = async (
           error.errors
         )[0];
 
-      return res.status(400).json({
-        success: false,
-        message:
-          firstError?.message ||
-          "Invalid product information.",
-      });
+      return res
+        .status(400)
+        .json({
+          success: false,
+
+          message:
+            firstError?.message ||
+            "Invalid product information.",
+        });
     }
 
     console.error(
@@ -909,11 +1308,13 @@ const createProduct = async (
       error
     );
 
-    return res.status(500).json({
-      success: false,
-      message:
-        "Unable to create product.",
-    });
+    return res
+      .status(500)
+      .json({
+        success: false,
+        message:
+          "Unable to create product.",
+      });
   }
 };
 
@@ -961,7 +1362,6 @@ const updateProduct = async (
       category,
       subCategory,
       brand,
-      sku,
       price,
       discountPrice,
       stock,
@@ -1039,36 +1439,7 @@ const updateProduct = async (
         ).trim();
     }
 
-    if (
-      sku !==
-      undefined
-    ) {
-      const cleanSku =
-        String(sku)
-          .trim()
-          .toUpperCase();
-
-      const existing =
-        await Product.exists({
-          sku: cleanSku,
-
-          _id: {
-            $ne:
-              product._id,
-          },
-        });
-
-      if (existing) {
-        return res.status(409).json({
-          success: false,
-          message:
-            "Another product already uses this SKU.",
-        });
-      }
-
-      product.sku =
-        cleanSku;
-    }
+    
 
     if (
       price !==
@@ -3695,10 +4066,334 @@ const getCustomerReport = async (
   }
 };
 
+
+/**
+ * GET /api/admin/reports/agent-sales
+ *
+ * Agent-wise delivered sales report.
+ *
+ * Optional:
+ * ?days=30
+ *
+ * The reporting period is based on
+ * deliveredAt because this report measures
+ * completed delivery performance.
+ */
+const getAgentSalesReport = async (
+  req,
+  res
+) => {
+  try {
+    let days =
+      Number(
+        req.query.days
+      ) || 30;
+
+    if (days < 1) {
+      days = 30;
+    }
+
+    if (days > 365) {
+      days = 365;
+    }
+
+    const endDate =
+      new Date();
+
+    const startDate =
+      new Date();
+
+    startDate.setDate(
+      startDate.getDate() -
+        (days - 1)
+    );
+
+    startDate.setHours(
+      0,
+      0,
+      0,
+      0
+    );
+
+    const agentSales =
+      await Order.aggregate([
+        {
+          $match: {
+            orderStatus:
+              "delivered",
+
+            deliveredAt: {
+              $gte:
+                startDate,
+
+              $lte:
+                endDate,
+            },
+
+            "delivery.agent": {
+              $ne:
+                null,
+            },
+          },
+        },
+
+        /**
+         * Group completed deliveries
+         * agent-wise.
+         */
+        {
+          $group: {
+            _id:
+              "$delivery.agent",
+
+            deliveredOrders: {
+              $sum: 1,
+            },
+
+            productsDelivered: {
+              $sum: {
+                $ifNull: [
+                  "$totalItems",
+                  0,
+                ],
+              },
+            },
+
+            deliveredRevenue: {
+              $sum: {
+                $ifNull: [
+                  "$totalAmount",
+                  0,
+                ],
+              },
+            },
+
+            firstDeliveryAt: {
+              $min:
+                "$deliveredAt",
+            },
+
+            lastDeliveryAt: {
+              $max:
+                "$deliveredAt",
+            },
+          },
+        },
+
+        /**
+         * Load delivery-agent account.
+         */
+        {
+          $lookup: {
+            from:
+              "users",
+
+            localField:
+              "_id",
+
+            foreignField:
+              "_id",
+
+            as:
+              "agent",
+          },
+        },
+
+        {
+          $unwind: {
+            path:
+              "$agent",
+
+            preserveNullAndEmptyArrays:
+              true,
+          },
+        },
+
+        /**
+         * Return clean frontend-ready structure.
+         */
+        {
+          $project: {
+            _id: 0,
+
+            agentId:
+              "$_id",
+
+            name: {
+              $ifNull: [
+                "$agent.name",
+                "Unknown Agent",
+              ],
+            },
+
+            email: {
+              $ifNull: [
+                "$agent.email",
+                "",
+              ],
+            },
+
+            phone: {
+              $ifNull: [
+                "$agent.phone",
+                "",
+              ],
+            },
+
+            employeeId: {
+              $ifNull: [
+                "$agent.deliveryAgentProfile.employeeId",
+                "-",
+              ],
+            },
+
+            vehicleNumber: {
+              $ifNull: [
+                "$agent.deliveryAgentProfile.vehicleNumber",
+                "-",
+              ],
+            },
+
+            deliveryArea: {
+              $ifNull: [
+                "$agent.deliveryAgentProfile.deliveryArea",
+                "-",
+              ],
+            },
+
+            deliveredOrders: 1,
+
+            productsDelivered: 1,
+
+            deliveredRevenue: 1,
+
+            firstDeliveryAt: 1,
+
+            lastDeliveryAt: 1,
+          },
+        },
+
+        /**
+         * Highest delivered revenue first.
+         */
+        {
+          $sort: {
+            deliveredRevenue: -1,
+            deliveredOrders: -1,
+            productsDelivered: -1,
+          },
+        },
+      ]);
+
+    const normalizedAgents =
+      agentSales.map(
+        (
+          agent
+        ) => ({
+          ...agent,
+
+          deliveredOrders:
+            Number(
+              agent.deliveredOrders ||
+                0
+            ),
+
+          productsDelivered:
+            Number(
+              agent.productsDelivered ||
+                0
+            ),
+
+          deliveredRevenue:
+            Number(
+              (
+                agent.deliveredRevenue ||
+                0
+              ).toFixed(2)
+            ),
+        })
+      );
+
+    const summary =
+      normalizedAgents.reduce(
+        (
+          result,
+          agent
+        ) => {
+          result.totalAgents +=
+            1;
+
+          result.deliveredOrders +=
+            Number(
+              agent.deliveredOrders ||
+                0
+            );
+
+          result.productsDelivered +=
+            Number(
+              agent.productsDelivered ||
+                0
+            );
+
+          result.deliveredRevenue +=
+            Number(
+              agent.deliveredRevenue ||
+                0
+            );
+
+          return result;
+        },
+        {
+          totalAgents: 0,
+          deliveredOrders: 0,
+          productsDelivered: 0,
+          deliveredRevenue: 0,
+        }
+      );
+
+    summary.deliveredRevenue =
+      Number(
+        summary.deliveredRevenue.toFixed(
+          2
+        )
+      );
+
+    return res.status(200).json({
+      success: true,
+
+      period: {
+        days,
+        startDate,
+        endDate,
+      },
+
+      summary,
+
+      agents:
+        normalizedAgents,
+    });
+  } catch (
+    error
+  ) {
+    console.error(
+      "Agent sales report error:",
+      error
+    );
+
+    return res.status(500).json({
+      success: false,
+
+      message:
+        "Unable to load agent sales report.",
+    });
+  }
+};
+
 export {
   getDashboardStats,
 
   getAdminProducts,
+  getProductCategories,
   getAdminProductById,
   createProduct,
   updateProduct,
@@ -3719,4 +4414,5 @@ export {
 
   getSalesOverview,
   getCustomerReport,
+  getAgentSalesReport,
 };

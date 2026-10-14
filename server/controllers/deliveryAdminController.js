@@ -532,180 +532,215 @@ export const getAvailableDeliveryAgents =
  *   "deliveryArea": "Karad"
  * }
  */
-export const createDeliveryAgent =
-  async (
-    req,
-    res
-  ) => {
-    try {
-      const name =
-        normalizeText(
-          req.body.name,
-          100
-        );
-
-      const email =
-        normalizeText(
-          req.body.email,
-          150
-        ).toLowerCase();
-
-      const password =
-        String(
-          req.body.password ??
-            ""
-        );
-
-      const phone =
-        normalizeText(
-          req.body.phone,
-          20
-        );
-
-      const employeeId =
-        normalizeText(
-          req.body.employeeId,
-          50
-        ).toUpperCase();
-
-      const vehicleNumber =
-        normalizeText(
-          req.body.vehicleNumber,
-          30
-        ).toUpperCase();
-
-      const deliveryArea =
-        normalizeText(
-          req.body.deliveryArea,
-          150
-        );
+export const createDeliveryAgent = async (
+  req,
+  res
+) => {
+  try {
+    const {
+      name,
+      email,
+      phone,
+      password,
+      vehicleNumber,
+      deliveryArea,
+    } =
+      req.body;
 
 
-      if (
-        !name ||
-        name.length < 2
-      ) {
-        return res
-          .status(400)
-          .json({
-            success: false,
-            message:
-              "Delivery agent name is required.",
-          });
-      }
+    if (
+      !name ||
+      !email ||
+      !phone ||
+      !password ||
+      !vehicleNumber ||
+      !deliveryArea
+    ) {
+      return res.status(400).json({
+        success: false,
+        message:
+          "Name, email, phone, password, vehicle number and delivery area are required.",
+      });
+    }
 
 
-      if (
-        !email ||
-        !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(
-          email
+    const normalizedEmail =
+      String(email)
+        .trim()
+        .toLowerCase();
+
+
+    const existingUser =
+      await User.findOne({
+        email:
+          normalizedEmail,
+      });
+
+
+    if (
+      existingUser
+    ) {
+      return res.status(400).json({
+        success: false,
+        message:
+          "A user with this email already exists.",
+      });
+    }
+
+
+    /**
+     * ============================================================
+     * AUTO-GENERATE EMPLOYEE ID
+     *
+     * Examples:
+     * DA-001
+     * DA-002
+     * DA-003
+     * ============================================================
+     */
+    const agents =
+      await User.find({
+        role:
+          "delivery_agent",
+
+        "deliveryAgentProfile.employeeId":
+          {
+            $regex:
+              /^DA-\d+$/i,
+          },
+      })
+        .select(
+          "deliveryAgentProfile.employeeId"
         )
-      ) {
-        return res
-          .status(400)
-          .json({
-            success: false,
-            message:
-              "A valid email address is required.",
-          });
+        .lean();
+
+
+    let highestNumber =
+      0;
+
+
+    agents.forEach(
+      (
+        agent
+      ) => {
+        const employeeId =
+          agent
+            ?.deliveryAgentProfile
+            ?.employeeId;
+
+
+        if (
+          !employeeId
+        ) {
+          return;
+        }
+
+
+        const match =
+          String(
+            employeeId
+          ).match(
+            /^DA-(\d+)$/i
+          );
+
+
+        if (
+          !match
+        ) {
+          return;
+        }
+
+
+        const number =
+          Number(
+            match[1]
+          );
+
+
+        if (
+          number >
+          highestNumber
+        ) {
+          highestNumber =
+            number;
+        }
       }
+    );
 
 
-      if (
-        password.length <
-        6
-      ) {
-        return res
-          .status(400)
-          .json({
-            success: false,
-            message:
-              "Password must contain at least 6 characters.",
-          });
-      }
+    const nextNumber =
+      highestNumber +
+      1;
 
 
-      if (!phone) {
-        return res
-          .status(400)
-          .json({
-            success: false,
-            message:
-              "Phone number is required.",
-          });
-      }
+    const employeeId =
+      `DA-${String(
+        nextNumber
+      ).padStart(
+        3,
+        "0"
+      )}`;
 
 
-      if (
-        !employeeId
-      ) {
-        return res
-          .status(400)
-          .json({
-            success: false,
-            message:
-              "Employee ID is required.",
-          });
-      }
+    /**
+     * Extra safety check.
+     */
+    const duplicateEmployeeId =
+      await User.findOne({
+        "deliveryAgentProfile.employeeId":
+          employeeId,
+      });
 
 
-      const existingEmail =
-        await User.findOne({
-          email,
-        });
-
-      if (
-        existingEmail
-      ) {
-        return res
-          .status(409)
-          .json({
-            success: false,
-            message:
-              "An account with this email already exists.",
-          });
-      }
+    if (
+      duplicateEmployeeId
+    ) {
+      return res.status(409).json({
+        success: false,
+        message:
+          "Unable to generate a unique employee ID. Please try again.",
+      });
+    }
 
 
-      const existingEmployee =
-        await User.findOne({
-          role:
-            "delivery_agent",
+    const deliveryAgent =
+      await User.create({
+        name:
+          String(
+            name
+          ).trim(),
 
-          "deliveryAgentProfile.employeeId":
+        email:
+          normalizedEmail,
+
+        phone:
+          String(
+            phone
+          ).trim(),
+
+        password,
+
+        role:
+          "delivery_agent",
+
+        isActive:
+          true,
+
+        deliveryAgentProfile:
+          {
             employeeId,
-        });
 
-      if (
-        existingEmployee
-      ) {
-        return res
-          .status(409)
-          .json({
-            success: false,
-            message:
-              "This delivery agent employee ID is already in use.",
-          });
-      }
+            vehicleNumber:
+              String(
+                vehicleNumber
+              )
+                .trim()
+                .toUpperCase(),
 
-
-      const agent =
-        new User({
-          name,
-          email,
-          password,
-          phone,
-
-          role:
-            "delivery_agent",
-
-          isActive:
-            true,
-
-          deliveryAgentProfile: {
-            employeeId,
-            vehicleNumber,
-            deliveryArea,
+            deliveryArea:
+              String(
+                deliveryArea
+              ).trim(),
 
             isAvailable:
               true,
@@ -713,63 +748,46 @@ export const createDeliveryAgent =
             joinedAt:
               new Date(),
           },
-        });
+      });
 
 
-      /**
-       * User model automatically
-       * hashes the password.
-       */
-      await agent.save();
+    return res.status(201).json({
+      success: true,
+
+      message:
+        `Delivery agent created successfully with Employee ID ${employeeId}.`,
+
+      agent:
+        deliveryAgent,
+    });
+  } catch (
+    error
+  ) {
+    console.error(
+      "Create delivery agent error:",
+      error
+    );
 
 
-      const safeAgent =
-        await User.findById(
-          agent._id
-        ).select(
-          "name email phone role isActive deliveryAgentProfile createdAt updatedAt"
-        );
-
-
-      return res
-        .status(201)
-        .json({
-          success: true,
-
-          message:
-            "Delivery agent created successfully.",
-
-          agent:
-            safeAgent,
-        });
-    } catch (error) {
-      console.error(
-        "Create delivery agent error:",
-        error
-      );
-
-      if (
-        error?.code ===
-        11000
-      ) {
-        return res
-          .status(409)
-          .json({
-            success: false,
-            message:
-              "Delivery agent email or employee ID already exists.",
-          });
-      }
-
-      return res
-        .status(500)
-        .json({
-          success: false,
-          message:
-            "Unable to create delivery agent.",
-        });
+    if (
+      error?.code ===
+      11000
+    ) {
+      return res.status(409).json({
+        success: false,
+        message:
+          "A delivery agent with the same email or employee ID already exists.",
+      });
     }
-  };
+
+
+    return res.status(500).json({
+      success: false,
+      message:
+        "Unable to create delivery agent.",
+    });
+  }
+};
 
 
 /**

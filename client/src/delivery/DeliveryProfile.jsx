@@ -78,11 +78,11 @@ const DeliveryProfile = () => {
 
 
           const profileData =
+            response.data?.agent ||
             response.data?.user ||
             response.data?.profile ||
             response.data ||
             null;
-
 
           setProfile(
             profileData
@@ -184,6 +184,7 @@ const DeliveryProfile = () => {
 
 
         const updatedProfile =
+          response.data?.agent ||
           response.data?.user ||
           response.data?.profile ||
           response.data ||

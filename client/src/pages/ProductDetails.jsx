@@ -43,9 +43,12 @@ import {
 } from "../context/WishlistContext.jsx";
 
 const ProductDetails = () => {
-  const {
-    identifier,
-  } = useParams();
+  const params =
+    useParams();
+
+  const identifier =
+    params.identifier ||
+    params.slug;
 
   const navigate =
     useNavigate();

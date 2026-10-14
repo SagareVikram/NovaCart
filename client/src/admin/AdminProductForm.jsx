@@ -60,6 +60,21 @@ const AdminProductForm = () => {
     useState(initialForm);
 
   const [
+    categories,
+    setCategories,
+  ] = useState([]);
+
+  const [
+    customCategoryMode,
+    setCustomCategoryMode,
+  ] = useState(false);
+
+  const [
+    customSubCategoryMode,
+    setCustomSubCategoryMode,
+  ] = useState(false);
+
+  const [
     specifications,
     setSpecifications,
   ] = useState([
@@ -208,7 +223,56 @@ const AdminProductForm = () => {
           ? product.images
           : []
       );
+
+      setCustomCategoryMode(
+        false
+      );
+
+      setCustomSubCategoryMode(
+        false
+      );
     }, []);
+
+
+  /**
+ * Load existing categories and
+ * subcategories from products.
+ *
+ * Backend:
+ * GET /api/admin/products/meta/categories
+ */
+const loadProductCategories =
+  useCallback(async () => {
+    try {
+      const response =
+        await api.get(
+          "/admin/products/meta/categories"
+        );
+
+      setCategories(
+        Array.isArray(
+          response.data
+            ?.categories
+        )
+          ? response.data
+              .categories
+          : []
+      );
+    } catch (error) {
+      console.error(
+        "Unable to load product categories:",
+        error
+      );
+
+      setCategories([]);
+    }
+  }, []);
+
+useEffect(() => {
+  loadProductCategories();
+}, [
+  loadProductCategories,
+]);
 
   /**
    * Load product during edit mode.
@@ -319,7 +383,136 @@ const AdminProductForm = () => {
       existingImages,
       newImages,
     ]);
+  
+  const handleCategoryChange =
+  (event) => {
+    const value =
+      event.target.value;
 
+    setError("");
+    setMessage("");
+
+    if (
+      value ===
+      "__other__"
+    ) {
+      setCustomCategoryMode(
+        true
+      );
+
+      setCustomSubCategoryMode(
+        false
+      );
+
+      setFormData(
+        (current) => ({
+          ...current,
+          category: "",
+          subCategory: "",
+        })
+      );
+
+      return;
+    }
+
+    setCustomCategoryMode(
+      false
+    );
+
+    setCustomSubCategoryMode(
+      false
+    );
+
+    setFormData(
+      (current) => ({
+        ...current,
+        category:
+          value,
+        subCategory:
+          "",
+      })
+    );
+  };
+
+
+const handleCustomCategoryChange =
+  (event) => {
+    const value =
+      event.target.value;
+
+    setFormData(
+      (current) => ({
+        ...current,
+        category:
+          value,
+      })
+    );
+
+    setError("");
+    setMessage("");
+  };
+
+
+const handleSubCategoryChange =
+  (event) => {
+    const value =
+      event.target.value;
+
+    setError("");
+    setMessage("");
+
+    if (
+      value ===
+      "__other__"
+    ) {
+      setCustomSubCategoryMode(
+        true
+      );
+
+      setFormData(
+        (current) => ({
+          ...current,
+          subCategory:
+            "",
+        })
+      );
+
+      return;
+    }
+
+    setCustomSubCategoryMode(
+      false
+    );
+
+    setFormData(
+      (current) => ({
+        ...current,
+        subCategory:
+          value,
+      })
+    );
+  };
+
+
+const handleCustomSubCategoryChange =
+  (event) => {
+    const value =
+      event.target.value;
+
+    setFormData(
+      (current) => ({
+        ...current,
+        subCategory:
+          value,
+      })
+    );
+
+    setError("");
+    setMessage("");
+  };
+
+
+  
   const handleChange = (
     event
   ) => {
@@ -345,6 +538,152 @@ const AdminProductForm = () => {
     setError("");
     setMessage("");
   };
+
+
+  /**
+ * Category values available in dropdown.
+ *
+ * Current product category is also
+ * included during edit mode even if
+ * metadata has not refreshed yet.
+ */
+const categoryNames =
+  useMemo(() => {
+    const values =
+      categories
+        .map(
+          (item) =>
+            String(
+              item?.name ||
+                ""
+            ).trim()
+        )
+        .filter(Boolean);
+
+    if (
+      formData.category &&
+      !customCategoryMode &&
+      !values.some(
+        (item) =>
+          item.toLowerCase() ===
+          formData.category
+            .trim()
+            .toLowerCase()
+      )
+    ) {
+      values.push(
+        formData.category.trim()
+      );
+    }
+
+    return Array.from(
+      new Set(values)
+    ).sort(
+      (
+        first,
+        second
+      ) =>
+        first.localeCompare(
+          second
+        )
+    );
+  }, [
+    categories,
+    formData.category,
+    customCategoryMode,
+  ]);
+
+
+/**
+ * Find the currently selected
+ * category object.
+ */
+const selectedCategory =
+  useMemo(() => {
+    if (
+      customCategoryMode ||
+      !formData.category
+    ) {
+      return null;
+    }
+
+    return (
+      categories.find(
+        (item) =>
+          String(
+            item?.name ||
+              ""
+          )
+            .trim()
+            .toLowerCase() ===
+          formData.category
+            .trim()
+            .toLowerCase()
+      ) || null
+    );
+  }, [
+    categories,
+    formData.category,
+    customCategoryMode,
+  ]);
+
+
+/**
+ * Subcategories available for the
+ * selected category.
+ */
+const subCategoryNames =
+  useMemo(() => {
+    const values =
+      Array.isArray(
+        selectedCategory
+          ?.subCategories
+      )
+        ? selectedCategory
+            .subCategories
+            .map(
+              (item) =>
+                String(
+                  item ||
+                    ""
+                ).trim()
+            )
+            .filter(Boolean)
+        : [];
+
+    if (
+      formData.subCategory &&
+      !customSubCategoryMode &&
+      !values.some(
+        (item) =>
+          item.toLowerCase() ===
+          formData.subCategory
+            .trim()
+            .toLowerCase()
+      )
+    ) {
+      values.push(
+        formData.subCategory.trim()
+      );
+    }
+
+    return Array.from(
+      new Set(values)
+    ).sort(
+      (
+        first,
+        second
+      ) =>
+        first.localeCompare(
+          second
+        )
+    );
+  }, [
+    selectedCategory,
+    formData.subCategory,
+    customSubCategoryMode,
+  ]);
+
 
   const handleSpecificationChange =
     (
@@ -652,8 +991,7 @@ const AdminProductForm = () => {
     const brand =
       formData.brand.trim();
 
-    const sku =
-      formData.sku.trim();
+    
 
     if (!name) {
       return "Product name is required.";
@@ -713,15 +1051,7 @@ const AdminProductForm = () => {
       return "Brand cannot exceed 100 characters.";
     }
 
-    if (!sku) {
-      return "SKU is required.";
-    }
-
-    if (
-      sku.length > 80
-    ) {
-      return "SKU cannot exceed 80 characters.";
-    }
+    
 
     const price =
       Number(
@@ -908,12 +1238,7 @@ const AdminProductForm = () => {
       formData.brand.trim()
     );
 
-    payload.append(
-      "sku",
-      formData.sku
-        .trim()
-        .toUpperCase()
-    );
+    
 
     payload.append(
       "price",
@@ -1256,20 +1581,67 @@ const AdminProductForm = () => {
                   Category *
                 </label>
 
-                <input
+                <select
                   id="product-category"
-                  name="category"
-                  type="text"
                   value={
-                    formData.category
+                    customCategoryMode
+                      ? "__other__"
+                      : formData.category
                   }
                   onChange={
-                    handleChange
+                    handleCategoryChange
                   }
-                  placeholder="Example: Electronics"
-                  maxLength={100}
                   required
-                />
+                >
+                  <option value="">
+                    Select Category
+                  </option>
+
+                  {categoryNames.map(
+                    (
+                      category
+                    ) => (
+                      <option
+                        key={
+                          category
+                        }
+                        value={
+                          category
+                        }
+                      >
+                        {category}
+                      </option>
+                    )
+                  )}
+
+                  <option value="__other__">
+                    Other - Add New Category
+                  </option>
+                </select>
+
+                {customCategoryMode && (
+                  <input
+                    type="text"
+                    value={
+                      formData.category
+                    }
+                    onChange={
+                      handleCustomCategoryChange
+                    }
+                    placeholder="Enter new category"
+                    maxLength={100}
+                    required
+                    style={{
+                      marginTop:
+                        "10px",
+                    }}
+                  />
+                )}
+
+                <small>
+                  Select an existing category or
+                  choose Other to create a new one.
+                </small>
               </div>
 
               <div className="form-group">
@@ -1277,19 +1649,72 @@ const AdminProductForm = () => {
                   Sub Category
                 </label>
 
-                <input
+                <select
                   id="product-subcategory"
-                  name="subCategory"
-                  type="text"
                   value={
-                    formData.subCategory
+                    customSubCategoryMode
+                      ? "__other__"
+                      : formData.subCategory
                   }
                   onChange={
-                    handleChange
+                    handleSubCategoryChange
                   }
-                  placeholder="Example: Smartphones"
-                  maxLength={100}
-                />
+                  disabled={
+                    !formData.category
+                  }
+                >
+                  <option value="">
+                    {formData.category
+                      ? "Select Sub Category"
+                      : "Select Category First"}
+                  </option>
+
+                  {subCategoryNames.map(
+                    (
+                      subCategory
+                    ) => (
+                      <option
+                        key={
+                          subCategory
+                        }
+                        value={
+                          subCategory
+                        }
+                      >
+                        {subCategory}
+                      </option>
+                    )
+                  )}
+
+                  {formData.category && (
+                    <option value="__other__">
+                      Other - Add New Sub Category
+                    </option>
+                  )}
+                </select>
+
+                {customSubCategoryMode && (
+                  <input
+                    type="text"
+                    value={
+                      formData.subCategory
+                    }
+                    onChange={
+                      handleCustomSubCategoryChange
+                    }
+                    placeholder="Enter new sub category"
+                    maxLength={100}
+                    style={{
+                      marginTop:
+                        "10px",
+                    }}
+                  />
+                )}
+
+                <small>
+                  Subcategories are shown according
+                  to the selected category.
+                </small>
               </div>
 
               <div className="form-group">
@@ -1314,27 +1739,41 @@ const AdminProductForm = () => {
 
               <div className="form-group">
                 <label htmlFor="product-sku">
-                  SKU *
+                  SKU
                 </label>
 
-                <input
-                  id="product-sku"
-                  name="sku"
-                  type="text"
-                  value={
-                    formData.sku
-                  }
-                  onChange={
-                    handleChange
-                  }
-                  placeholder="Example: NOVA-SAM-001"
-                  maxLength={80}
-                  required
-                />
+                {isEditing ? (
+                  <>
+                    <input
+                      id="product-sku"
+                      type="text"
+                      value={
+                        formData.sku
+                      }
+                      readOnly
+                    />
 
-                <small>
-                  SKU is saved in uppercase and must be unique.
-                </small>
+                    <small>
+                      SKU is generated automatically
+                      and cannot be changed.
+                    </small>
+                  </>
+                ) : (
+                  <>
+                    <input
+                      id="product-sku"
+                      type="text"
+                      value="Auto-generated after save"
+                      readOnly
+                    />
+
+                    <small>
+                      NovaCart will automatically
+                      generate a unique SKU such as
+                      NOVA-0001.
+                    </small>
+                  </>
+                )}
               </div>
 
               <div className="form-group admin-form-full">

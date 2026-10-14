@@ -27,7 +27,6 @@ const emptyForm = {
   email: "",
   password: "",
   phone: "",
-  employeeId: "",
   vehicleNumber: "",
   deliveryArea: "",
 };
@@ -308,11 +307,7 @@ const AdminDeliveryAgents = () => {
           agent.phone ||
           "",
 
-        employeeId:
-          agent
-            .deliveryAgentProfile
-            ?.employeeId ||
-          "",
+        
 
         vehicleNumber:
           agent
@@ -411,12 +406,7 @@ const AdminDeliveryAgents = () => {
         return "Phone number is required.";
       }
 
-      if (
-        !formData.employeeId
-          .trim()
-      ) {
-        return "Employee ID is required.";
-      }
+      
 
       return "";
     };
@@ -469,9 +459,7 @@ const AdminDeliveryAgents = () => {
             formData.phone
               .trim(),
 
-          employeeId:
-            formData.employeeId
-              .trim(),
+          
 
           vehicleNumber:
             formData.vehicleNumber
@@ -776,6 +764,11 @@ const AdminDeliveryAgents = () => {
                   ? "Update Delivery Agent"
                   : "Create Delivery Agent"}
               </h2>
+              {!editingAgent && (
+                <p className="admin-form-note">
+                  Employee ID will be generated automatically after creating the agent.
+                </p>
+              )}
             </div>
 
             <FaTruck className="admin-card-header-icon" />
@@ -808,7 +801,7 @@ const AdminDeliveryAgents = () => {
                   onChange={
                     handleFormChange
                   }
-                  placeholder="Rahul Patil"
+                  
                   maxLength="100"
                   required
                 />
@@ -832,7 +825,7 @@ const AdminDeliveryAgents = () => {
                   onChange={
                     handleFormChange
                   }
-                  placeholder="rahul@novacart.com"
+                  
                   maxLength="150"
                   required
                 />
@@ -856,7 +849,7 @@ const AdminDeliveryAgents = () => {
                   onChange={
                     handleFormChange
                   }
-                  placeholder="9876543210"
+                  
                   maxLength="20"
                   required
                 />
@@ -864,28 +857,7 @@ const AdminDeliveryAgents = () => {
               </div>
 
 
-              <div className="admin-form-group">
-
-                <label htmlFor="delivery-employee-id">
-                  Employee ID
-                </label>
-
-                <input
-                  id="delivery-employee-id"
-                  type="text"
-                  name="employeeId"
-                  value={
-                    formData.employeeId
-                  }
-                  onChange={
-                    handleFormChange
-                  }
-                  placeholder="DA-001"
-                  maxLength="50"
-                  required
-                />
-
-              </div>
+              
 
 
               <div className="admin-form-group">
@@ -904,8 +876,9 @@ const AdminDeliveryAgents = () => {
                   onChange={
                     handleFormChange
                   }
-                  placeholder="MH11AB1234"
+                  
                   maxLength="30"
+                  required
                 />
 
               </div>
@@ -927,8 +900,9 @@ const AdminDeliveryAgents = () => {
                   onChange={
                     handleFormChange
                   }
-                  placeholder="Karad"
+                  
                   maxLength="150"
+                  required
                 />
 
               </div>

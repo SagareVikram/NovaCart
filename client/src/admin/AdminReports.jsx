@@ -13,6 +13,7 @@ import {
   FaFilePdf,
   FaMoneyBillWave,
   FaShoppingBag,
+  FaTruck,
   FaUsers,
 } from "react-icons/fa";
 
@@ -46,6 +47,22 @@ const AdminReports = () => {
   ] = useState([]);
 
   const [
+  agentSales,
+  setAgentSales,
+] = useState({
+  period: null,
+
+  summary: {
+    totalAgents: 0,
+    deliveredOrders: 0,
+    productsDelivered: 0,
+    deliveredRevenue: 0,
+  },
+
+  agents: [],
+});
+
+  const [
     loading,
     setLoading,
   ] = useState(true);
@@ -65,6 +82,7 @@ const AdminReports = () => {
           const [
             overviewResponse,
             customerResponse,
+            agentSalesResponse,
           ] =
             await Promise.all([
               api.get(
@@ -74,6 +92,11 @@ const AdminReports = () => {
               api.get(
                 "/admin/reports/customers"
               ),
+
+              api.get(
+                `/admin/reports/agent-sales?days=${days}`
+              ),
+
             ]);
 
           setOverview({
@@ -141,9 +164,49 @@ const AdminReports = () => {
                   .customers
               : []
           );
+
+          setAgentSales({
+            period:
+              agentSalesResponse.data
+                ?.period ||
+              null,
+
+            summary:
+              agentSalesResponse.data
+                ?.summary || {
+                totalAgents: 0,
+                deliveredOrders: 0,
+                productsDelivered: 0,
+                deliveredRevenue: 0,
+              },
+
+            agents:
+              Array.isArray(
+                agentSalesResponse.data
+                  ?.agents
+              )
+                ? agentSalesResponse.data
+                    .agents
+                : [],
+          });
+
+
         } catch (error) {
           setOverview(null);
           setCustomers([]);
+
+          setAgentSales({
+            period: null,
+
+            summary: {
+              totalAgents: 0,
+              deliveredOrders: 0,
+              productsDelivered: 0,
+              deliveredRevenue: 0,
+            },
+
+            agents: [],
+          });
 
           setError(
             getApiErrorMessage(
@@ -215,6 +278,21 @@ const AdminReports = () => {
 
   const totalCustomers =
     customers.length;
+
+  const agentSalesSummary =
+    agentSales?.summary || {
+      totalAgents: 0,
+      deliveredOrders: 0,
+      productsDelivered: 0,
+      deliveredRevenue: 0,
+    };
+
+  const agentSalesRows =
+    Array.isArray(
+      agentSales?.agents
+    )
+      ? agentSales.agents
+      : [];
 
   const totalCustomerSpend =
     useMemo(
@@ -1104,7 +1182,265 @@ const AdminReports = () => {
       );
     };
 
+  
+  const downloadAgentSalesReport =
+  () => {
+    const doc =
+      new jsPDF({
+        orientation:
+          "landscape",
+        unit:
+          "mm",
+        format:
+          "a4",
+      });
 
+    addPdfHeader(
+      doc,
+      "Delivery Agent Sales Report",
+      `${getPeriodLabel()} | Delivered Orders Only | Generated: ${getGeneratedDate()}`
+    );
+
+    /**
+     * Summary
+     */
+    autoTable(
+      doc,
+      {
+        startY: 40,
+
+        head: [[
+          "Metric",
+          "Value",
+        ]],
+
+        body: [
+          [
+            "Report Period",
+            getPeriodLabel(),
+          ],
+
+          [
+            "Agents With Deliveries",
+            String(
+              agentSalesSummary
+                .totalAgents ||
+                0
+            ),
+          ],
+
+          [
+            "Delivered Orders",
+            String(
+              agentSalesSummary
+                .deliveredOrders ||
+                0
+            ),
+          ],
+
+          [
+            "Products Delivered",
+            String(
+              agentSalesSummary
+                .productsDelivered ||
+                0
+            ),
+          ],
+
+          [
+            "Delivered Revenue",
+            `INR ${formatPrice(
+              agentSalesSummary
+                .deliveredRevenue
+            )}`,
+          ],
+        ],
+
+        theme:
+          "grid",
+
+        tableWidth:
+          140,
+
+        headStyles: {
+          fillColor: [
+            108,
+            60,
+            255,
+          ],
+        },
+      }
+    );
+
+    let startY =
+      doc.lastAutoTable
+        .finalY + 10;
+
+    doc.setFont(
+      "helvetica",
+      "bold"
+    );
+
+    doc.setFontSize(
+      13
+    );
+
+    doc.text(
+      "Agent-Wise Delivery Performance",
+      14,
+      startY
+    );
+
+    autoTable(
+      doc,
+      {
+        startY:
+          startY + 4,
+
+        head: [[
+          "#",
+          "Employee ID",
+          "Agent",
+          "Phone",
+          "Vehicle",
+          "Area",
+          "Delivered Orders",
+          "Products Delivered",
+          "Delivered Revenue",
+          "Last Delivery",
+        ]],
+
+        body:
+          agentSalesRows.length >
+          0
+            ? agentSalesRows.map(
+                (
+                  agent,
+                  index
+                ) => [
+                  index + 1,
+
+                  agent.employeeId ||
+                    "-",
+
+                  agent.name ||
+                    "Delivery Agent",
+
+                  agent.phone ||
+                    "-",
+
+                  agent.vehicleNumber ||
+                    "-",
+
+                  agent.deliveryArea ||
+                    "-",
+
+                  Number(
+                    agent.deliveredOrders ||
+                      0
+                  ),
+
+                  Number(
+                    agent.productsDelivered ||
+                      0
+                  ),
+
+                  `INR ${formatPrice(
+                    agent.deliveredRevenue
+                  )}`,
+
+                  formatDate(
+                    agent.lastDeliveryAt
+                  ),
+                ]
+              )
+            : [[
+                "-",
+                "-",
+                "No delivered orders available",
+                "-",
+                "-",
+                "-",
+                "0",
+                "0",
+                "INR 0",
+                "-",
+              ]],
+
+        theme:
+          "striped",
+
+        styles: {
+          fontSize:
+            7.5,
+
+          cellPadding:
+            2.2,
+        },
+
+        headStyles: {
+          fillColor: [
+            108,
+            60,
+            255,
+          ],
+
+          fontSize:
+            7.5,
+        },
+
+        columnStyles: {
+          0: {
+            cellWidth: 9,
+          },
+
+          1: {
+            cellWidth: 20,
+          },
+
+          2: {
+            cellWidth: 30,
+          },
+
+          3: {
+            cellWidth: 23,
+          },
+
+          4: {
+            cellWidth: 24,
+          },
+
+          5: {
+            cellWidth: 24,
+          },
+
+          6: {
+            cellWidth: 24,
+          },
+
+          7: {
+            cellWidth: 25,
+          },
+
+          8: {
+            cellWidth: 30,
+          },
+
+          9: {
+            cellWidth: 24,
+          },
+        },
+      }
+    );
+
+    savePdf(
+      doc,
+      "delivery-agent-sales-report"
+    );
+  };
+
+
+  
   const downloadCompleteReport =
     () => {
       const doc =
@@ -1621,7 +1957,266 @@ const AdminReports = () => {
             <FaFilePdf />
             Low Stock Report
           </button>
+
+          <button
+            type="button"
+            onClick={
+              downloadAgentSalesReport
+            }
+            style={pdfButtonStyle}
+          >
+            <FaTruck />
+            Agent Sales Report
+          </button>
+
         </div>
+      </section>
+      
+            {/* AGENT-WISE SALES */}
+
+      <section
+        className="admin-card"
+        style={{
+          marginBottom: "24px",
+        }}
+      >
+        <div className="admin-card-header">
+          <div>
+            <span className="admin-card-eyebrow">
+              Delivery Performance
+            </span>
+
+            <h2>
+              Agent-Wise Sales
+            </h2>
+          </div>
+
+          <FaTruck className="admin-card-header-icon" />
+        </div>
+
+        <div className="admin-customer-report-summary">
+
+          <div>
+            <span>
+              Agents
+            </span>
+
+            <strong>
+              {
+                agentSalesSummary
+                  .totalAgents
+              }
+            </strong>
+          </div>
+
+          <div>
+            <span>
+              Delivered Orders
+            </span>
+
+            <strong>
+              {
+                agentSalesSummary
+                  .deliveredOrders
+              }
+            </strong>
+          </div>
+
+          <div>
+            <span>
+              Products Delivered
+            </span>
+
+            <strong>
+              {
+                agentSalesSummary
+                  .productsDelivered
+              }
+            </strong>
+          </div>
+
+          <div>
+            <span>
+              Delivered Revenue
+            </span>
+
+            <strong>
+              ₹
+              {formatPrice(
+                agentSalesSummary
+                  .deliveredRevenue
+              )}
+            </strong>
+          </div>
+
+        </div>
+
+        <p className="admin-report-note">
+          Agent performance is calculated
+          from successfully delivered orders
+          during the selected reporting
+          period.
+        </p>
+
+        {agentSalesRows.length > 0 ? (
+          <div className="admin-table-wrap">
+
+            <table className="admin-table">
+
+              <thead>
+                <tr>
+                  <th>
+                    Agent
+                  </th>
+
+                  <th>
+                    Employee ID
+                  </th>
+
+                  <th>
+                    Vehicle
+                  </th>
+
+                  <th>
+                    Area
+                  </th>
+
+                  <th>
+                    Delivered Orders
+                  </th>
+
+                  <th>
+                    Products
+                  </th>
+
+                  <th>
+                    Revenue
+                  </th>
+
+                  <th>
+                    Last Delivery
+                  </th>
+                </tr>
+              </thead>
+
+              <tbody>
+
+                {agentSalesRows.map(
+                  (
+                    agent
+                  ) => (
+                    <tr
+                      key={
+                        agent.agentId
+                      }
+                    >
+
+                      <td>
+                        <div className="admin-user-cell">
+
+                          <div className="admin-user-avatar">
+                            {String(
+                              agent.name ||
+                                "D"
+                            )
+                              .charAt(0)
+                              .toUpperCase()}
+                          </div>
+
+                          <div>
+                            <strong>
+                              {agent.name ||
+                                "Delivery Agent"}
+                            </strong>
+
+                            <span>
+                              {agent.email ||
+                                "-"}
+                            </span>
+
+                            <small>
+                              {agent.phone ||
+                                "-"}
+                            </small>
+                          </div>
+
+                        </div>
+                      </td>
+
+                      <td>
+                        <strong>
+                          {agent.employeeId ||
+                            "-"}
+                        </strong>
+                      </td>
+
+                      <td>
+                        {agent.vehicleNumber ||
+                          "-"}
+                      </td>
+
+                      <td>
+                        {agent.deliveryArea ||
+                          "-"}
+                      </td>
+
+                      <td>
+                        <strong>
+                          {Number(
+                            agent.deliveredOrders ||
+                              0
+                          )}
+                        </strong>
+                      </td>
+
+                      <td>
+                        {Number(
+                          agent.productsDelivered ||
+                            0
+                        )}
+                      </td>
+
+                      <td>
+                        <strong>
+                          ₹
+                          {formatPrice(
+                            agent.deliveredRevenue
+                          )}
+                        </strong>
+                      </td>
+
+                      <td>
+                        {formatDate(
+                          agent.lastDeliveryAt
+                        )}
+                      </td>
+
+                    </tr>
+                  )
+                )}
+
+              </tbody>
+
+            </table>
+
+          </div>
+        ) : (
+          <div className="admin-empty-state">
+
+            <FaTruck />
+
+            <h3>
+              No Agent Sales Data
+            </h3>
+
+            <p>
+              No delivery agent has completed
+              an order during the selected
+              reporting period.
+            </p>
+
+          </div>
+        )}
       </section>
 
 

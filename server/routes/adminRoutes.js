@@ -4,6 +4,7 @@ import {
   getDashboardStats,
 
   getAdminProducts,
+  getProductCategories,
   getAdminProductById,
   createProduct,
   updateProduct,
@@ -24,6 +25,7 @@ import {
 
   getSalesOverview,
   getCustomerReport,
+  getAgentSalesReport,
 } from "../controllers/adminController.js";
 
 import {
@@ -105,6 +107,20 @@ router.get(
 router.get(
   "/products",
   getAdminProducts
+);
+
+
+
+/**
+ * Get existing product categories and
+ * subcategories for admin product form.
+ *
+ * GET
+ * /api/admin/products/meta/categories
+ */
+router.get(
+  "/products/meta/categories",
+  getProductCategories
 );
 
 
@@ -491,6 +507,17 @@ router.get(
 router.get(
   "/reports/customers",
   getCustomerReport
+);
+
+/**
+ * Delivery agent sales report.
+ *
+ * GET
+ * /api/admin/reports/agent-sales?days=30
+ */
+router.get(
+  "/reports/agent-sales",
+  getAgentSalesReport
 );
 
 
